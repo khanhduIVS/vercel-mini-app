@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Học Từ Vựng Tiếng Anh',
-  description: 'App học từ vựng tiếng Anh — thêm, sửa, xóa và quản lý danh sách từ vựng.',
+  title: 'Ứng dụng học từ vựng',
+  description: 'Học từ vựng tiếng Anh vui vẻ và hiệu quả — thêm, sửa, xóa, và ôn tập với spaced repetition.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

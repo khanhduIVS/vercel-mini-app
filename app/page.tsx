@@ -1,292 +1,1161 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import type { Vocab, UserStats, UnsplashImage } from '@/lib/types';
 
-interface Vocab {
-  id: number;
-  word: string;
-  meaning: string;
-  example: string | null;
+// ---------------------------------------------------------------------------
+//  Constants
+// ---------------------------------------------------------------------------
+const COUNTDOWN_SECONDS = 30;
+
+const WORD_TYPE_MAP: Record<string, string> = {
+  'n': 'Danh từ', 'v': 'Động từ', 'adj': 'Tính từ', 'adv': 'Trạng từ',
+  'pron': 'Đại từ', 'prep': 'Giới từ', 'conj': 'Liên từ', 'interj': 'Thán từ',
+  'det': 'Từ hạn định', 'art': 'Mạo từ', 'num': 'Số từ',
+  'aux': 'Trợ động từ', 'modal': 'Động từ khuyết thiếu',
+  'phr': 'Cụm động từ', 'abbr': 'Từ viết tắt',
+};
+
+function speak(text: string) {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'en-US';
+  u.rate = 0.9;
+  window.speechSynthesis.speak(u);
 }
 
+// ---------------------------------------------------------------------------
+//  Component
+// ---------------------------------------------------------------------------
 export default function Home() {
-  const [vocabs, setVocabs] = useState<Vocab[]>([]);
-  const [word, setWord] = useState('');
-  const [meaning, setMeaning] = useState('');
-  const [example, setExample] = useState('');
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [deleteId, setDeleteId] = useState<number | null>(null);
+  // --- Main state ---
+  const [currentView, setCurrentView] = useState<'user' | 'dashboard' | 'learn'>('user');
+  const [currentUser, setCurrentUser] = useState('');
+  const [users, setUsers] = useState<string[]>([]);
+  const [newUserName, setNewUserName] = useState('');
+  const [stats, setStats] = useState<UserStats | null>(null);
+  const [topics, setTopics] = useState<string[]>([]);
+  const [selectedTopic, setSelectedTopic] = useState('all');
+  const [wordCount, setWordCount] = useState(5);
 
-  const fetchVocabs = useCallback(async () => {
+  // --- Learning state ---
+  const [wordList, setWordList] = useState<Vocab[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
+
+  // --- UI helpers state ---
+  const [toast, setToast] = useState<{ id: number; message: string; type: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Đang tải...');
+
+  // --- Import state ---
+  const [showImport, setShowImport] = useState(false);
+  const [csvInput, setCsvInput] = useState('');
+  const [importFileContent, setImportFileContent] = useState('');
+  const [fileName, setFileName] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // --- Words manager state ---
+  const [showWordsManager, setShowWordsManager] = useState(false);
+  const [managerWords, setManagerWords] = useState<Vocab[]>([]);
+  const [managerTotal, setManagerTotal] = useState(0);
+  const [managerPage, setManagerPage] = useState(1);
+  const [managerSearch, setManagerSearch] = useState('');
+  const [managerSearchInput, setManagerSearchInput] = useState('');
+  const [managerTopicFilter, setManagerTopicFilter] = useState('');
+
+  // --- Word editor state ---
+  const [showWordEditor, setShowWordEditor] = useState(false);
+  const [editWordId, setEditWordId] = useState<string | null>(null);
+  const [editEnglish, setEditEnglish] = useState('');
+  const [editIpa, setEditIpa] = useState('');
+  const [editWordType, setEditWordType] = useState('');
+  const [editMeaning, setEditMeaning] = useState('');
+  const [editTopic, setEditTopic] = useState('');
+  const [editImageUrl, setEditImageUrl] = useState('');
+
+  // --- Fetch image state ---
+  const [showFetchImage, setShowFetchImage] = useState(false);
+  const [fetchImageWord, setFetchImageWord] = useState('');
+  const [fetchImageResults, setFetchImageResults] = useState<UnsplashImage[]>([]);
+  const [fetchImageSelectedUrl, setFetchImageSelectedUrl] = useState('');
+  const [fetchImageStatus, setFetchImageStatus] = useState('');
+  const [fetchImageHasResults, setFetchImageHasResults] = useState(false);
+
+  // ===================================================================
+  //  TOAST
+  // ===================================================================
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', duration = 2800) => {
+    const id = Date.now();
+    setToast({ id, message, type });
+    setTimeout(() => setToast((prev) => (prev?.id === id ? null : prev)), duration);
+  }, []);
+
+  // ===================================================================
+  //  USER FLOW
+  // ===================================================================
+  const loadUserList = useCallback(async () => {
     try {
-      setLoading(true);
-      const res = await fetch('/api/vocab');
+      const res = await fetch('/api/users');
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setVocabs(data);
-      setError('');
+      setUsers(Array.isArray(data) ? data : []);
     } catch {
-      setError('Không thể tải danh sách từ vựng. Vui lòng kiểm tra kết nối database.');
+      showToast('Không thể tải danh sách người dùng', 'error');
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    loadUserList();
+  }, [loadUserList]);
+
+  const createNewUser = async () => {
+    const name = newUserName.trim();
+    if (!name) { showToast('Vui lòng nhập tên người dùng', 'error'); return; }
+
+    setLoading(true);
+    setLoadingMessage('Đang tạo người dùng...');
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Lỗi');
+      }
+      const data = await res.json();
+      setNewUserName('');
+      showToast(`Đã chọn người dùng "${data.userName}"`, 'success');
+      enterApp(data.userName);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Không thể tạo người dùng', 'error');
     } finally {
       setLoading(false);
     }
+  };
+
+  const startLearning = () => {
+    if (!currentUser) return;
+    enterApp(currentUser);
+  };
+
+  // Only called from the select dropdown; user is already set
+  const onSelectUser = (name: string) => {
+    setCurrentUser(name);
+  };
+
+  const enterApp = (userName: string) => {
+    setCurrentUser(userName);
+    setCurrentView('dashboard');
+    loadDashboard(userName);
+    loadTopicList();
+  };
+
+  // ===================================================================
+  //  DASHBOARD
+  // ===================================================================
+  const loadDashboard = useCallback(async (userName: string) => {
+    setLoading(true);
+    setLoadingMessage('Đang tải thống kê...');
+    try {
+      const res = await fetch(`/api/stats?user=${encodeURIComponent(userName)}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setStats(data);
+    } catch {
+      showToast('Không thể tải thống kê', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
+  const refreshDashboard = () => {
+    loadDashboard(currentUser);
+    showToast('Đã làm mới dữ liệu', 'success');
+  };
+
+  const logout = () => {
+    stopCountdownRef.current();
+    if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
+    setCurrentUser('');
+    setCurrentView('user');
+    loadUserList();
+  };
+
+  const loadTopicList = useCallback(async () => {
+    try {
+      const res = await fetch('/api/topics');
+      if (!res.ok) return;
+      const data = await res.json();
+      setTopics(Array.isArray(data) ? data : []);
+    } catch { /* silent */ }
   }, []);
 
-  useEffect(() => {
-    fetchVocabs();
-  }, [fetchVocabs]);
-
-  const resetForm = () => {
-    setWord('');
-    setMeaning('');
-    setExample('');
-    setEditingId(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!word.trim() || !meaning.trim()) return;
-
-    setSubmitting(true);
+  // ===================================================================
+  //  LEARNING
+  // ===================================================================
+  const startLearningSession = async () => {
+    const topic = selectedTopic === 'all' ? '' : selectedTopic;
+    setLoading(true);
+    setLoadingMessage('Đang chuẩn bị bài học...');
     try {
-      if (editingId !== null) {
-        const res = await fetch(`/api/vocab/${editingId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ word, meaning, example }),
-        });
-        if (!res.ok) throw new Error();
-        const updated = await res.json();
-        setVocabs(vocabs.map((v) => (v.id === editingId ? updated : v)));
-      } else {
-        const res = await fetch('/api/vocab', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ word, meaning, example }),
-        });
-        if (!res.ok) throw new Error();
-        const created = await res.json();
-        setVocabs([created, ...vocabs]);
-      }
-      resetForm();
-      setError('');
-    } catch {
-      setError('Thao tác thất bại. Vui lòng kiểm tra kết nối database.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleEdit = (vocab: Vocab) => {
-    setEditingId(vocab.id);
-    setWord(vocab.word);
-    setMeaning(vocab.meaning);
-    setExample(vocab.example || '');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleDelete = async (id: number) => {
-    try {
-      const res = await fetch(`/api/vocab/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/learn?user=${encodeURIComponent(currentUser)}&count=${wordCount}&topic=${encodeURIComponent(topic)}`);
       if (!res.ok) throw new Error();
-      setVocabs(vocabs.filter((v) => v.id !== id));
-      if (editingId === id) resetForm();
+      const data = await res.json();
+      if (!data.words || data.words.length === 0) {
+        showToast('Chưa có từ nào trong kho. Vui lòng thêm từ vựng.', 'info');
+        return;
+      }
+      setWordList(data.words);
+      setCurrentIndex(0);
+      setCurrentView('learn');
     } catch {
-      setError('Xóa thất bại. Vui lòng thử lại.');
+      showToast('Không thể bắt đầu học', 'error');
     } finally {
-      setDeleteId(null);
+      setLoading(false);
     }
   };
 
+  // Countdown timer
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopCountdownRef = useRef(() => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+  });
+
+  useEffect(() => {
+    stopCountdownRef.current();
+    if (currentView !== 'learn' || wordList.length === 0) return;
+
+    let remaining = COUNTDOWN_SECONDS;
+    setCountdown(remaining);
+
+    countdownTimerRef.current = setInterval(() => {
+      remaining--;
+      setCountdown(Math.max(0, remaining));
+      if (remaining <= 0) {
+        stopCountdownRef.current();
+        setCurrentIndex((idx) => (idx + 1) % wordList.length);
+      }
+    }, 1000);
+
+    return () => stopCountdownRef.current();
+  }, [currentIndex, currentView, wordList.length]);
+
+  // Speak word when it changes
+  useEffect(() => {
+    if (currentView === 'learn' && wordList[currentIndex]) {
+      speak(wordList[currentIndex].englishWord);
+    }
+  }, [currentIndex, currentView, wordList]);
+
+  const nextWord = () => {
+    if (wordList.length === 0) return;
+    setCurrentIndex((idx) => (idx + 1) % wordList.length);
+  };
+
+  const prevWord = () => {
+    setCurrentIndex((idx) => (idx > 0 ? idx - 1 : 0));
+  };
+
+  const backToDashboard = () => {
+    stopCountdownRef.current();
+    if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
+    setCurrentView('dashboard');
+    loadDashboard(currentUser);
+  };
+
+  // ===================================================================
+  //  IMPORT CSV
+  // ===================================================================
+  const showImportModal = () => {
+    setShowImport(true);
+    setCsvInput('');
+    setImportFileContent('');
+    setFileName('');
+  };
+
+  const hideImportModal = () => {
+    setShowImport(false);
+    setCsvInput('');
+    setImportFileContent('');
+    setFileName('');
+  };
+
+  const onFilePicked = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) readImportFile(file);
+  };
+
+  const readImportFile = (file: File) => {
+    const name = (file.name || '').toLowerCase();
+    if (!/\.(csv|txt)$/.test(name)) {
+      showToast('Chỉ hỗ trợ file .csv hoặc .txt', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = String(e.target?.result || '');
+      setImportFileContent(content);
+      const lines = content.split(/\r?\n/).filter((l) => l.trim());
+      setFileName(`✓ ${file.name} (${lines.length} dòng)`);
+    };
+    reader.onerror = () => showToast('Không đọc được file', 'error');
+    reader.readAsText(file, 'UTF-8');
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files?.[0];
+    if (file) readImportFile(file);
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const doImport = async () => {
+    const csv = (importFileContent || csvInput).trim();
+    if (!csv) { showToast('Vui lòng chọn file hoặc dán dữ liệu CSV', 'error'); return; }
+
+    setLoading(true);
+    setLoadingMessage('Đang import từ vựng...');
+    try {
+      const res = await fetch('/api/vocab/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csv }),
+      });
+      if (!res.ok) throw new Error();
+      const result = await res.json();
+      hideImportModal();
+      let msg = 'Import hoàn tất!\n';
+      msg += `➕ Thêm mới: ${result.imported} dòng\n`;
+      msg += `🔄 Cập nhật: ${result.updated} dòng\n`;
+      msg += `⏸️ Giữ nguyên: ${result.unchanged} dòng`;
+      if (result.errors) msg += `\n⚠️ Lỗi: ${result.errors} dòng`;
+      showToast(msg, 'success', 6000);
+      loadDashboard(currentUser);
+    } catch {
+      showToast('Không thể import', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ===================================================================
+  //  WORDS MANAGER
+  // ===================================================================
+  const showWordsManagerModal = () => {
+    setManagerPage(1);
+    setManagerSearch('');
+    setManagerSearchInput('');
+    setManagerTopicFilter('');
+    loadTopicsForManager();
+    renderWordsManager('', '', 1);
+    setShowWordsManager(true);
+  };
+
+  const hideWordsManagerModal = () => {
+    setShowWordsManager(false);
+    setShowWordEditor(false);
+  };
+
+  const loadTopicsForManager = async () => {
+    try {
+      const res = await fetch('/api/topics');
+      if (!res.ok) return;
+      const data = await res.json();
+      setTopics(Array.isArray(data) ? data : []);
+    } catch { /* silent */ }
+  };
+
+  const renderWordsManager = useCallback(async (search: string, topic: string, page: number) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        search, topic, page: String(page), pageSize: '20',
+      });
+      const res = await fetch(`/api/vocab?${params}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setManagerWords(data.words || []);
+      setManagerTotal(data.total || 0);
+    } catch {
+      showToast('Không thể tải danh sách từ', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
+  const onManagerSearch = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      setManagerSearch(managerSearchInput);
+      setManagerPage(1);
+      renderWordsManager(managerSearchInput, managerTopicFilter, 1);
+    }
+  };
+
+  const onManagerTopicChange = (value: string) => {
+    setManagerTopicFilter(value);
+    setManagerPage(1);
+    renderWordsManager(managerSearch, value, 1);
+  };
+
+  const managerPrevPage = () => {
+    if (managerPage > 1) {
+      const p = managerPage - 1;
+      setManagerPage(p);
+      renderWordsManager(managerSearch, managerTopicFilter, p);
+    }
+  };
+
+  const managerNextPage = () => {
+    const totalPages = Math.ceil(managerTotal / 20);
+    if (managerPage < totalPages) {
+      const p = managerPage + 1;
+      setManagerPage(p);
+      renderWordsManager(managerSearch, managerTopicFilter, p);
+    }
+  };
+
+  // ===================================================================
+  //  WORD EDITOR
+  // ===================================================================
+  const openWordEditor = async (wordId: string) => {
+    setLoading(true);
+    setLoadingMessage('Đang tải thông tin từ...');
+    try {
+      const res = await fetch(`/api/vocab/${wordId}`);
+      if (!res.ok) throw new Error();
+      const word = await res.json();
+      if (!word) { showToast('Không tìm thấy từ', 'error'); return; }
+      setEditWordId(wordId);
+      setEditEnglish(word.englishWord);
+      setEditIpa(word.ipa || '');
+      setEditWordType(word.wordType || '');
+      setEditMeaning(word.vietnameseMeaning);
+      setEditTopic(word.topic || '');
+      setEditImageUrl(word.imageUrl || '');
+      setShowWordEditor(true);
+    } catch {
+      showToast('Không thể tải thông tin từ', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const closeWordEditor = () => {
+    setShowWordEditor(false);
+    setEditWordId(null);
+    setEditEnglish('');
+    setEditIpa('');
+    setEditWordType('');
+    setEditMeaning('');
+    setEditTopic('');
+    setEditImageUrl('');
+  };
+
+  const saveWord = async () => {
+    if (!editWordId) return;
+    setLoading(true);
+    setLoadingMessage('Đang lưu...');
+    try {
+      const res = await fetch(`/api/vocab/${editWordId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ipa: editIpa,
+          wordType: editWordType,
+          vietnameseMeaning: editMeaning,
+          topic: editTopic,
+          imageUrl: editImageUrl,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      showToast('Cập nhật thành công', 'success');
+      closeWordEditor();
+      renderWordsManager(managerSearch, managerTopicFilter, managerPage);
+    } catch {
+      showToast('Lỗi khi cập nhật', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteCurrentWord = async () => {
+    if (!editWordId) return;
+    if (!confirm('Bạn có chắc chắn muốn xóa từ này?')) return;
+    setLoading(true);
+    setLoadingMessage('Đang xóa...');
+    try {
+      const res = await fetch(`/api/vocab/${editWordId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      showToast('Xóa thành công', 'success');
+      closeWordEditor();
+      renderWordsManager(managerSearch, managerTopicFilter, managerPage);
+    } catch {
+      showToast('Lỗi khi xóa', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmDeleteWord = async (wordId: string) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa từ này?')) return;
+    setLoading(true);
+    setLoadingMessage('Đang xóa...');
+    try {
+      const res = await fetch(`/api/vocab/${wordId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      showToast('Xóa thành công', 'success');
+      renderWordsManager(managerSearch, managerTopicFilter, managerPage);
+    } catch {
+      showToast('Lỗi khi xóa', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ===================================================================
+  //  UNSPLASH IMAGE SEARCH
+  // ===================================================================
+  const fetchImageUrlFromUnsplash = () => {
+    if (!editEnglish.trim()) {
+      showToast('Vui lòng nhập từ tiếng Anh trước', 'error');
+      return;
+    }
+    setFetchImageWord(editEnglish.trim());
+    setFetchImageResults([]);
+    setFetchImageSelectedUrl('');
+    setFetchImageStatus('');
+    setFetchImageHasResults(false);
+    setShowFetchImage(true);
+  };
+
+  const hideFetchImageModal = () => setShowFetchImage(false);
+
+  const doFetchImage = async () => {
+    const word = fetchImageWord.trim();
+    if (!word) { showToast('Vui lòng nhập từ tiếng Anh', 'error'); return; }
+
+    setLoading(true);
+    setLoadingMessage('Đang tìm ảnh...');
+    try {
+      const res = await fetch(`/api/unsplash?word=${encodeURIComponent(word)}`);
+      if (!res.ok) throw new Error();
+      const images = await res.json();
+      if (Array.isArray(images) && images.length > 0) {
+        setFetchImageResults(images);
+        setFetchImageHasResults(true);
+        setFetchImageStatus(`Tìm thấy ${images.length} ảnh. Nhấn để chọn ảnh phù hợp.`);
+      } else {
+        setFetchImageResults([]);
+        setFetchImageHasResults(false);
+        setFetchImageStatus('❌ Không tìm thấy ảnh cho từ này. Thử từ khác!');
+      }
+    } catch {
+      setFetchImageStatus('❌ Lỗi khi tìm ảnh');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const selectImage = (img: UnsplashImage) => {
+    setFetchImageSelectedUrl(img.regular);
+  };
+
+  const useSelectedImage = () => {
+    if (fetchImageSelectedUrl) {
+      setEditImageUrl(fetchImageSelectedUrl);
+      setShowFetchImage(false);
+      showToast('Đã thêm link ảnh', 'success');
+    }
+  };
+
+  const copyImageLink = () => {
+    if (!fetchImageSelectedUrl) return;
+    navigator.clipboard.writeText(fetchImageSelectedUrl).then(
+      () => showToast('Đã copy link ảnh vào clipboard', 'success'),
+      () => showToast('Không thể copy', 'error')
+    );
+  };
+
+  // ===================================================================
+  //  RENDER HELPERS
+  // ===================================================================
+  const getWordTypeHtml = (wordType: string) => {
+    if (!wordType) return null;
+    const desc = WORD_TYPE_MAP[wordType] || '';
+    return (
+      <>
+        <span className="word-type">{wordType}</span>
+        {desc && <span className="word-type-desc">({desc})</span>}
+      </>
+    );
+  };
+
+  const currentWord = wordList[currentIndex];
+
+  // Manager pagination info
+  const managerStart = managerTotal > 0 ? (managerPage - 1) * 20 + 1 : 0;
+  const managerEnd = Math.min(managerStart + 19, managerTotal);
+  const managerTotalPages = Math.ceil(managerTotal / 20);
+
+  // ===================================================================
+  //  RENDER
+  // ===================================================================
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-      <div className="max-w-3xl mx-auto px-4 py-8 sm:py-12">
-        {/* Header */}
-        <header className="text-center mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 mb-2">
-            📖 Học Từ Vựng Tiếng Anh
-          </h1>
-          <p className="text-gray-500">Thêm, sửa và quản lý danh sách từ vựng của bạn</p>
-        </header>
+    <div className="app-container">
+      {/* ===== VIEW 1: USER SELECTION ===== */}
+      <section className={`view ${currentView === 'user' ? 'active' : ''}`}>
+        <div className="card">
+          <div className="logo">📚</div>
+          <h1 className="app-title">Ứng dụng học từ vựng</h1>
+          <p className="app-subtitle">Học tiếng Anh vui vẻ và hiệu quả</p>
 
-        {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-start justify-between gap-3">
-            <span>{error}</span>
-            <button
-              onClick={() => setError('')}
-              className="text-red-400 hover:text-red-600 shrink-0"
-              aria-label="Đóng"
-            >
-              ✕
-            </button>
+          <label className="field-label" htmlFor="userSelect">👤 Chọn người học</label>
+          <select
+            id="userSelect"
+            className="input-field"
+            value={currentUser}
+            onChange={(e) => onSelectUser(e.target.value)}
+          >
+            <option value="">-- Chọn tên --</option>
+            {users.map((u) => (
+              <option key={u} value={u}>{u}</option>
+            ))}
+          </select>
+
+          <div className="divider"><span>hoặc</span></div>
+
+          <label className="field-label" htmlFor="newUserName">➕ Tạo người dùng mới</label>
+          <input
+            id="newUserName"
+            className="input-field"
+            type="text"
+            maxLength={20}
+            placeholder="Nhập tên mới..."
+            value={newUserName}
+            onChange={(e) => setNewUserName(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && createNewUser()}
+          />
+          <button className="btn btn-secondary btn-block mt-16" onClick={createNewUser}>
+            Tạo &amp; vào học
+          </button>
+
+          <button
+            className="btn btn-primary btn-block mt-24"
+            onClick={startLearning}
+            disabled={!currentUser}
+          >
+            ▶ Bắt đầu học
+          </button>
+
+          <div className="stats-grid">
+            <div className="stat-box bg-green">
+              <div className="num">{users.length}</div>
+              <div className="lbl">Người học</div>
+            </div>
+            <div className="stat-box bg-blue">
+              <div className="num">20+</div>
+              <div className="lbl">Từ vựng mẫu</div>
+            </div>
           </div>
-        )}
+        </div>
+      </section>
 
-        {/* Form */}
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-700">
-              {editingId !== null ? '✏️ Sửa từ vựng' : '➕ Thêm từ vựng mới'}
+      {/* ===== VIEW 2: DASHBOARD ===== */}
+      <section className={`view ${currentView === 'dashboard' ? 'active' : ''}`}>
+        <div className="card">
+          <div className="row-between">
+            <h2 className="app-title" style={{ textAlign: 'left', margin: 0 }}>
+              Xin chào, {currentUser}!
             </h2>
-            {editingId !== null && (
-              <button
-                type="button"
-                onClick={resetForm}
-                className="text-sm text-gray-500 hover:text-gray-700"
-              >
-                Hủy
-              </button>
-            )}
+            <button className="btn btn-secondary" onClick={logout}>Đổi người</button>
           </div>
 
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">
-                Từ tiếng Anh <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={word}
-                onChange={(e) => setWord(e.target.value)}
-                placeholder="VD: accommodate"
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                required
-              />
+          <div className="stats-grid">
+            <div className="stat-box bg-blue">
+              <div className="num">{stats?.totalLearned ?? 0}</div>
+              <div className="lbl">Từ đã học</div>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">
-                Nghĩa tiếng Việt <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={meaning}
-                onChange={(e) => setMeaning(e.target.value)}
-                placeholder="VD: cho trú ngụ, cung cấp chỗ ở"
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                required
-              />
+            <div className="stat-box bg-yellow">
+              <div className="num">{stats?.dueForReview ?? 0}</div>
+              <div className="lbl">Cần ôn</div>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">
-                Ví dụ (tùy chọn)
-              </label>
-              <textarea
-                value={example}
-                onChange={(e) => setExample(e.target.value)}
-                placeholder="VD: The hotel can accommodate up to 500 guests."
-                rows={2}
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
-              />
+            <div className="stat-box bg-green">
+              <div className="num">{stats?.accuracy ?? 0}%</div>
+              <div className="lbl">Tỷ lệ đúng</div>
             </div>
+            <div className="stat-box bg-purple">
+              <div className="num">{stats?.progressPercentage ?? 0}%</div>
+              <div className="lbl">Tiến độ</div>
+            </div>
+          </div>
 
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+          <div className="progress-bar">
+            <div
+              className="progress-fill"
+              style={{ width: `${stats?.progressPercentage ?? 0}%` }}
+            />
+          </div>
+
+          <div className="mt-24">
+            <label className="field-label" htmlFor="topicSelect">📂 Chủ đề (để trống = tất cả)</label>
+            <select
+              id="topicSelect"
+              className="input-field"
+              value={selectedTopic}
+              onChange={(e) => setSelectedTopic(e.target.value)}
             >
-              {submitting
-                ? 'Đang xử lý...'
-                : editingId !== null
-                ? 'Lưu thay đổi'
-                : 'Thêm từ vựng'}
-            </button>
-          </div>
-        </form>
-
-        {/* Vocab List */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-700">
-              Danh sách từ vựng
-              <span className="ml-2 text-sm font-normal text-gray-400">
-                ({vocabs.length} từ)
-              </span>
-            </h2>
-          </div>
-
-          {loading ? (
-            <div className="text-center py-12 text-gray-400">Đang tải...</div>
-          ) : vocabs.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
-              <p className="text-5xl mb-3">📚</p>
-              <p className="text-gray-400">Chưa có từ vựng nào. Hãy thêm từ đầu tiên!</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {vocabs.map((vocab) => (
-                <div
-                  key={vocab.id}
-                  className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow"
-                >
-                  {deleteId === vocab.id ? (
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600">
-                        Xác nhận xóa &ldquo;{vocab.word}&rdquo;?
-                      </span>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleDelete(vocab.id)}
-                          className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm rounded-lg transition"
-                        >
-                          Xóa
-                        </button>
-                        <button
-                          onClick={() => setDeleteId(null)}
-                          className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm rounded-lg transition"
-                        >
-                          Hủy
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-bold text-indigo-600 mb-1">
-                            {vocab.word}
-                          </h3>
-                          <p className="text-gray-700">{vocab.meaning}</p>
-                          {vocab.example && (
-                            <p className="text-sm text-gray-400 italic mt-2">
-                              💬 {vocab.example}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex gap-1 shrink-0">
-                          <button
-                            onClick={() => handleEdit(vocab)}
-                            className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                            title="Sửa"
-                            aria-label="Sửa từ vựng"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => setDeleteId(vocab.id)}
-                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
-                            title="Xóa"
-                            aria-label="Xóa từ vựng"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
+              <option value="all">✨ Tất cả chủ đề</option>
+              {topics.map((t) => (
+                <option key={t} value={t}>{t}</option>
               ))}
+            </select>
+          </div>
+
+          <div className="mt-16">
+            <label className="field-label" htmlFor="wordCount">📊 Số từ muốn học</label>
+            <input
+              id="wordCount"
+              type="number"
+              className="input-field"
+              value={wordCount}
+              min={1}
+              onChange={(e) => setWordCount(Math.max(1, parseInt(e.target.value) || 5))}
+            />
+          </div>
+
+          <button className="btn btn-primary btn-block mt-16" onClick={startLearningSession}>
+            🎯 HỌC NGAY
+          </button>
+
+          <div className="mt-16" style={{ display: 'flex', gap: '10px' }}>
+            <button className="btn btn-secondary btn-block" onClick={showImportModal}>📥 Thêm từ mới</button>
+            <button className="btn btn-secondary btn-block" onClick={showWordsManagerModal}>📚 Quản lý từ vựng</button>
+            <button className="btn btn-secondary btn-block" onClick={refreshDashboard}>🔄 Làm mới</button>
+          </div>
+
+          <div className="card mt-24" style={{ boxShadow: 'none', background: '#f7fafc', padding: '18px' }}>
+            <div className="row-between">
+              <span className="text-muted">Tổng từ vựng có sẵn</span>
+              <strong>{stats?.totalAvailable ?? 0}</strong>
+            </div>
+            <div className="row-between mt-16">
+              <span className="text-muted">Box 1 (mới/đang học)</span>
+              <strong>{stats?.box1Count ?? 0}</strong>
+            </div>
+            <div className="row-between mt-16">
+              <span className="text-muted">Box 2 (quen dần)</span>
+              <strong>{stats?.box2Count ?? 0}</strong>
+            </div>
+            <div className="row-between mt-16">
+              <span className="text-muted">Box 3 (đã thuộc)</span>
+              <strong>{stats?.box3Count ?? 0}</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== VIEW 3: LEARN ===== */}
+      <section className={`view ${currentView === 'learn' ? 'active' : ''}`}>
+        <div className="card">
+          <div className="row-between">
+            <span className="badge">
+              Từ {currentIndex + 1}/{wordList.length}
+            </span>
+            <span className="countdown-badge">⏱ {countdown}s</span>
+            <button className="btn btn-secondary" onClick={backToDashboard}>← Quay lại</button>
+          </div>
+
+          {currentWord && (
+            <div className="mt-16">
+              <div className="word-card">
+                {currentWord.topic && currentWord.topic !== 'Chung' && (
+                  <div className="word-topic">📂 {currentWord.topic}</div>
+                )}
+                {currentWord.imageUrl && (
+                  <img
+                    className="word-image"
+                    src={currentWord.imageUrl}
+                    alt={currentWord.englishWord}
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                )}
+                <div className="word-en">{currentWord.englishWord}</div>
+                <div className="word-type-row">{getWordTypeHtml(currentWord.wordType)}</div>
+                {currentWord.ipa && <div className="word-ipa">{currentWord.ipa}</div>}
+                <button
+                  className="speak-btn"
+                  onClick={() => speak(currentWord.englishWord)}
+                  title="Nghe phát âm"
+                >
+                  🔊
+                </button>
+                <div className="word-divider" />
+                <div className="word-vi">{currentWord.vietnameseMeaning}</div>
+              </div>
+
+              <div className="nav-buttons">
+                <button className="btn btn-secondary" onClick={prevWord} disabled={currentIndex === 0}>
+                  ← Từ trước đó
+                </button>
+                <button className="btn btn-primary" onClick={nextWord}>
+                  Từ kế tiếp →
+                </button>
+              </div>
             </div>
           )}
         </div>
+      </section>
+
+      {/* ===== OVERLAY: LOADING ===== */}
+      <div className={`overlay ${loading ? 'active' : ''}`}>
+        <div className="card" style={{ textAlign: 'center', minWidth: '260px' }}>
+          <div className="spinner dark" />
+          <p className="mt-16">{loadingMessage}</p>
+        </div>
       </div>
+
+      {/* ===== OVERLAY: IMPORT CSV ===== */}
+      <div className={`overlay ${showImport ? 'active' : ''}`}>
+        <div className="modal">
+          <div className="row-between">
+            <h3 style={{ margin: 0 }}>Thêm từ vựng</h3>
+            <button className="btn btn-secondary" onClick={hideImportModal}>✕</button>
+          </div>
+          <p className="text-muted mt-16">
+            Định dạng mỗi dòng: <code>english,phiên_âm,loại_từ,nghĩa,chủ_đề,link_ảnh</code>
+            <br />
+            (phiên âm, loại từ, chủ đề, link ảnh có thể để trống; nghĩa chứa dấu phẩy thì bọc trong dấu &quot;...&quot;)
+          </p>
+
+          <div
+            className="drop-zone"
+            onClick={() => fileInputRef.current?.click()}
+            onDrop={onDrop}
+            onDragOver={onDragOver}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv,text/plain"
+              style={{ display: 'none' }}
+              onChange={onFilePicked}
+            />
+            <div>📄 <strong>Chọn file CSV</strong> hoặc kéo thả vào đây</div>
+            {fileName && <div className="text-muted" style={{ marginTop: '6px' }}>{fileName}</div>}
+          </div>
+
+          <div className="divider"><span>hoặc dán nội dung</span></div>
+
+          <textarea
+            placeholder={'apple,/æpl/,n,quả táo,Trái cây\nred,/red/,adj,màu đỏ,Màu sắc\ncat,,n,"con mèo, mèo nhà",Con vật'}
+            value={csvInput}
+            onChange={(e) => setCsvInput(e.target.value)}
+          />
+
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={hideImportModal}>Hủy</button>
+            <button className="btn btn-primary" onClick={doImport}>Import</button>
+          </div>
+        </div>
+      </div>
+
+      {/* ===== OVERLAY: WORDS MANAGER ===== */}
+      <div className={`overlay ${showWordsManager ? 'active' : ''}`}>
+        <div className="modal" style={{ maxWidth: '800px' }}>
+          <div className="row-between">
+            <h3 style={{ margin: 0 }}>📚 Quản lý từ vựng</h3>
+            <button className="btn btn-secondary" onClick={hideWordsManagerModal}>✕</button>
+          </div>
+
+          <div className="mt-16">
+            <div className="row-between">
+              <input
+                className="input-field"
+                type="text"
+                placeholder="🔍 Tìm từ hoặc nghĩa..."
+                style={{ width: '200px' }}
+                value={managerSearchInput}
+                onChange={(e) => setManagerSearchInput(e.target.value)}
+                onKeyPress={onManagerSearch}
+              />
+              <select
+                className="input-field"
+                value={managerTopicFilter}
+                onChange={(e) => onManagerTopicChange(e.target.value)}
+              >
+                <option value="">Tất cả chủ đề</option>
+                {topics.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-16" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            <table className="word-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #ddd' }}>Từ</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #ddd' }}>Nghĩa</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #ddd' }}>Loại</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #ddd' }}>Chủ đề</th>
+                  <th style={{ textAlign: 'center', padding: '8px', borderBottom: '1px solid #ddd' }}>Hình</th>
+                  <th style={{ textAlign: 'center', padding: '8px', borderBottom: '1px solid #ddd' }}>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {managerWords.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ padding: '20px', textAlign: 'center', color: '#888' }}>
+                      Không tìm thấy từ nào
+                    </td>
+                  </tr>
+                ) : (
+                  managerWords.map((w) => (
+                    <tr key={w.wordId} style={{ borderBottom: '1px solid #eee' }}>
+                      <td style={{ padding: '8px' }}><strong>{w.englishWord}</strong></td>
+                      <td style={{ padding: '8px' }}>{w.vietnameseMeaning}</td>
+                      <td style={{ padding: '8px' }}>{w.wordType || ''}</td>
+                      <td style={{ padding: '8px' }}>{w.topic || ''}</td>
+                      <td style={{ padding: '8px', textAlign: 'center' }}>{w.imageUrl ? '✅' : '❌'}</td>
+                      <td style={{ padding: '8px', textAlign: 'center' }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => openWordEditor(w.wordId)}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          className="btn btn-danger btn-sm"
+                          style={{ marginLeft: '4px' }}
+                          onClick={() => confirmDeleteWord(w.wordId)}
+                        >
+                          🗑️
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-16 row-between">
+            <div className="text-muted">
+              {managerTotal > 0
+                ? `Hiển thị ${managerStart}–${managerEnd} / ${managerTotal} từ`
+                : ''}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={managerPrevPage}
+                disabled={managerPage <= 1}
+              >
+                ← Trước
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={managerNextPage}
+                disabled={managerPage >= managerTotalPages || managerTotalPages === 0}
+              >
+                Sau →
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ===== OVERLAY: WORD EDITOR ===== */}
+      <div className={`overlay ${showWordEditor ? 'active' : ''}`} style={{ zIndex: 1000 }}>
+        <div className="modal" style={{ maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div className="row-between">
+            <h3 style={{ margin: 0 }}>✏️ Chỉnh sửa từ</h3>
+            <button className="btn btn-secondary" onClick={closeWordEditor}>✕</button>
+          </div>
+
+          <div className="mt-16">
+            <label className="field-label">Từ tiếng Anh</label>
+            <input className="input-field" type="text" value={editEnglish} readOnly />
+          </div>
+          <div className="mt-16">
+            <label className="field-label">Phiên âm</label>
+            <input
+              className="input-field"
+              type="text"
+              value={editIpa}
+              onChange={(e) => setEditIpa(e.target.value)}
+            />
+          </div>
+          <div className="mt-16">
+            <label className="field-label">Loại từ</label>
+            <select
+              className="input-field"
+              value={editWordType}
+              onChange={(e) => setEditWordType(e.target.value)}
+            >
+              <option value="">(trống)</option>
+              <option value="n">Danh từ (n)</option>
+              <option value="v">Động từ (v)</option>
+              <option value="adj">Tính từ (adj)</option>
+              <option value="adv">Trạng từ (adv)</option>
+              <option value="pron">Đại từ (pron)</option>
+              <option value="prep">Giới từ (prep)</option>
+              <option value="conj">Liên từ (conj)</option>
+              <option value="interj">Thán từ (interj)</option>
+            </select>
+          </div>
+          <div className="mt-16">
+            <label className="field-label">Nghĩa tiếng Việt</label>
+            <textarea
+              className="input-field"
+              rows={1}
+              placeholder="Nhập nghĩa tiếng Việt"
+              value={editMeaning}
+              onChange={(e) => setEditMeaning(e.target.value)}
+              style={{ minHeight: 'auto', padding: '13px 16px', fontFamily: 'inherit', fontSize: '16px' }}
+            />
+          </div>
+          <div className="mt-16">
+            <label className="field-label">Chủ đề</label>
+            <input
+              className="input-field"
+              type="text"
+              value={editTopic}
+              onChange={(e) => setEditTopic(e.target.value)}
+            />
+          </div>
+          <div className="mt-16">
+            <label className="field-label">Link ảnh</label>
+            <input
+              className="input-field"
+              type="text"
+              value={editImageUrl}
+              onChange={(e) => setEditImageUrl(e.target.value)}
+            />
+            <button className="btn btn-secondary mt-8" onClick={fetchImageUrlFromUnsplash}>
+              ⚡ Tìm ảnh từ Unsplash
+            </button>
+          </div>
+
+          {editImageUrl && (
+            <div style={{ marginTop: '16px', textAlign: 'center' }}>
+              <img
+                src={editImageUrl}
+                alt="Preview"
+                style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', border: '1px solid #eee' }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            </div>
+          )}
+
+          <div className="modal-actions mt-16">
+            <button className="btn btn-secondary" onClick={closeWordEditor}>Hủy</button>
+            <button className="btn btn-primary" onClick={saveWord}>Lưu thay đổi</button>
+            <button className="btn btn-danger" onClick={deleteCurrentWord}>🗑️ Xóa từ</button>
+          </div>
+        </div>
+      </div>
+
+      {/* ===== OVERLAY: FETCH IMAGE (UNSPLASH) ===== */}
+      <div className={`overlay ${showFetchImage ? 'active' : ''}`} style={{ zIndex: 1100 }}>
+        <div className="modal" style={{ maxWidth: '500px' }}>
+          <div className="row-between">
+            <h3 style={{ margin: 0 }}>⚡ Tìm ảnh từ Unsplash</h3>
+            <button className="btn btn-secondary" onClick={hideFetchImageModal}>✕</button>
+          </div>
+          <p className="text-muted mt-16">Nhập từ tiếng Anh để tìm ảnh minh họa</p>
+
+          <div className="mt-16">
+            <input
+              className="input-field"
+              type="text"
+              placeholder="Ví dụ: apple, cat, beautiful..."
+              value={fetchImageWord}
+              onChange={(e) => setFetchImageWord(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && doFetchImage()}
+            />
+          </div>
+
+          <div className="mt-16">
+            <button className="btn btn-primary btn-block" onClick={doFetchImage}>Tìm ảnh</button>
+          </div>
+
+          {fetchImageHasResults && (
+            <div className="mt-16">
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: '8px',
+                  maxHeight: '300px',
+                  overflowY: 'auto',
+                }}
+              >
+                {fetchImageResults.map((img, idx) => (
+                  <img
+                    key={idx}
+                    src={img.thumb}
+                    className={`unsplash-thumb ${fetchImageSelectedUrl === img.regular ? 'selected' : ''}`}
+                    alt={`Ảnh ${idx + 1}`}
+                    onClick={() => selectImage(img)}
+                  />
+                ))}
+              </div>
+              {fetchImageSelectedUrl && (
+                <div style={{ marginTop: '16px' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <img
+                      src={fetchImageSelectedUrl}
+                      alt="Preview"
+                      style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px' }}
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  </div>
+                  <div className="mt-16">
+                    <label className="field-label">Link ảnh đã chọn</label>
+                    <input
+                      className="input-field"
+                      type="text"
+                      readOnly
+                      value={fetchImageSelectedUrl}
+                    />
+                  </div>
+                  <div className="modal-actions mt-16">
+                    <button className="btn btn-secondary" onClick={copyImageLink}>📋 Copy link</button>
+                    <button className="btn btn-primary" onClick={useSelectedImage}>✓ Chọn ảnh này</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {fetchImageStatus && (
+            <div className="mt-16 text-muted" style={{ textAlign: 'center' }}>{fetchImageStatus}</div>
+          )}
+        </div>
+      </div>
+
+      {/* ===== TOAST ===== */}
+      {toast && (
+        <div className={`toast ${toast.type}`}>
+          {toast.message.split('\n').map((line, i) => (
+            <div key={i}>{line}</div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

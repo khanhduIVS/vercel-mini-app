@@ -1,3 +1,299 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* =========================================================================
+   Ported from Google Apps Script styles.html
+   ========================================================================= */
+
+:root {
+  --primary-start: #667eea;
+  --primary-end: #764ba2;
+  --success: #38a169;
+  --error: #c53030;
+  --info: #3182ce;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
+  min-height: 100vh;
+  color: #1a202c;
+}
+
+/* ---------- Layout chung ---------- */
+.app-container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.view { display: none; }
+.view.active { display: block; animation: fadeIn 0.3s ease; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.card {
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+  padding: 28px;
+}
+
+/* ---------- Tiêu đề / logo ---------- */
+.logo {
+  font-size: 3rem;
+  text-align: center;
+  background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 8px;
+}
+.app-title { text-align: center; font-size: 1.6rem; font-weight: 700; margin: 0 0 4px; }
+.app-subtitle { text-align: center; color: #718096; margin: 0 0 24px; }
+
+/* ---------- Form controls ---------- */
+label.field-label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #4a5568;
+  margin-bottom: 8px;
+}
+.input-field {
+  width: 100%;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 13px 16px;
+  font-size: 16px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-field:focus {
+  border-color: var(--primary-start);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+  outline: none;
+}
+
+.divider { display: flex; align-items: center; margin: 18px 0; color: #a0aec0; font-size: 0.85rem; }
+.divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+.divider span { padding: 0 12px; }
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  border-radius: 50px;
+  transition: transform 0.2s, box-shadow 0.2s, background 0.2s, color 0.2s;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-block { width: 100%; }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
+  color: #fff;
+  padding: 14px 30px;
+  font-size: 16px;
+}
+.btn-primary:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+}
+
+.btn-secondary {
+  background: #fff;
+  color: var(--primary-start);
+  border: 2px solid var(--primary-start);
+  padding: 11px 24px;
+}
+.btn-secondary:not(:disabled):hover { background: var(--primary-start); color: #fff; }
+
+.btn-danger { background: var(--error); color: #fff; padding: 14px 30px; }
+
+/* ---------- Stats grid ---------- */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-top: 24px;
+}
+.stat-box { border-radius: 14px; padding: 16px; text-align: center; }
+.stat-box .num { font-size: 1.8rem; font-weight: 800; }
+.stat-box .lbl { font-size: 0.8rem; color: #718096; margin-top: 2px; }
+.bg-blue { background: #ebf4ff; } .bg-blue .num { color: #3182ce; }
+.bg-green { background: #f0fff4; } .bg-green .num { color: #38a169; }
+.bg-yellow { background: #fffff0; } .bg-yellow .num { color: #d69e2e; }
+.bg-purple { background: #faf5ff; } .bg-purple .num { color: #805ad5; }
+
+.progress-bar { height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden; margin-top: 10px; }
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #805ad5, #d53f8c);
+  border-radius: 5px;
+  width: 0;
+  transition: width 0.5s ease;
+}
+
+/* ---------- Thẻ học từ (word card) ---------- */
+.word-card {
+  text-align: center;
+  padding: 28px 20px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #ebf4ff 0%, #faf5ff 100%);
+  margin: 10px 0 20px;
+}
+.word-topic { font-size: 0.85rem; color: #718096; margin-bottom: 10px; font-weight: 600; }
+.word-en { font-size: 2.8rem; font-weight: 800; color: #2d3748; line-height: 1.1; }
+.word-type {
+  display: inline-block; vertical-align: middle; margin-left: 10px;
+  font-size: 0.9rem; font-weight: 700; color: #805ad5;
+  background: #faf5ff; border-radius: 50px; padding: 3px 12px;
+}
+.word-type-desc {
+  font-size: 0.85rem; color: #718096; margin-left: 6px; font-weight: 500;
+}
+.word-ipa { font-size: 1.3rem; color: #805ad5; margin-top: 6px; font-family: 'Segoe UI', sans-serif; }
+.word-type-row { text-align: center; margin-top: 8px; }
+.word-image {
+  max-width: 180px;
+  max-height: 180px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  object-fit: contain;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.word-divider { height: 1px; background: #cbd5e0; margin: 18px auto; width: 60%; }
+.word-vi { font-size: 1.8rem; color: #2b6cb0; font-weight: 700; }
+
+.speak-btn {
+  background: #fff; color: #3182ce; border: 2px solid #bee3f8; cursor: pointer;
+  width: 56px; height: 56px; border-radius: 50%; font-size: 24px; margin-top: 14px;
+  transition: background 0.2s, transform 0.1s;
+}
+.speak-btn:hover { background: #bee3f8; }
+.speak-btn:active { transform: scale(0.92); }
+
+/* ---------- Điều hướng trước / kế tiếp ---------- */
+.nav-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+.nav-buttons .btn { width: 100%; }
+
+/* ---------- Bộ đếm ngược ---------- */
+.countdown-badge {
+  display: inline-block; padding: 5px 14px; border-radius: 50px;
+  background: #fffaf0; color: #dd6b20; font-weight: 700; font-size: 1rem;
+  border: 2px solid #fbd38d; white-space: nowrap;
+}
+
+.badge {
+  display: inline-block; padding: 4px 12px; border-radius: 50px;
+  font-size: 0.8rem; font-weight: 600; background: #edf2f7; color: #4a5568;
+}
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed; top: 20px; right: 20px; z-index: 1300;
+  padding: 14px 22px; border-radius: 10px; color: #fff; font-weight: 500;
+  max-width: 340px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  animation: slideIn 0.3s ease;
+}
+.toast.success { background: var(--success); }
+.toast.error { background: var(--error); }
+.toast.info { background: var(--info); }
+@keyframes slideIn { from { transform: translateX(120%); } to { transform: translateX(0); } }
+
+/* ---------- Loading ---------- */
+.spinner {
+  width: 28px; height: 28px; border: 3px solid rgba(255,255,255,0.4);
+  border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite;
+  margin: 0 auto;
+}
+.spinner.dark { border: 3px solid rgba(102,126,234,0.3); border-top-color: var(--primary-start); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: none; align-items: center; justify-content: center; z-index: 900;
+}
+.overlay.active { display: flex; }
+
+/* ---------- Modal ---------- */
+.modal { background: #fff; border-radius: 18px; padding: 24px; width: 100%; max-width: 480px; }
+.modal textarea {
+  width: 100%; min-height: 150px; padding: 12px; border: 1px solid #cbd5e0;
+  border-radius: 10px; font-family: monospace; font-size: 14px; resize: vertical;
+}
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+
+/* ---------- Drop zone (upload file CSV) ---------- */
+.drop-zone {
+  margin-top: 14px;
+  border: 2px dashed #cbd5e0;
+  border-radius: 12px;
+  padding: 22px 16px;
+  text-align: center;
+  color: #4a5568;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.drop-zone:hover { border-color: var(--primary-start); background: #f7fafc; }
+.drop-zone.drag-over { border-color: var(--primary-start); background: #ebf4ff; }
+
+.row-between { display: flex; justify-content: space-between; align-items: center; }
+.text-muted { color: #718096; font-size: 0.85rem; }
+.mt-8 { margin-top: 8px; }
+.mt-16 { margin-top: 16px; } .mt-24 { margin-top: 24px; }
+.hidden { display: none !important; }
+
+/* ---------- Bảng quản lý từ vựng ---------- */
+.word-table { border-collapse: collapse; }
+.word-table thead th { background: #f7fafc; }
+.word-table tbody tr:hover { background: #f7fafc; }
+
+/* ---------- Button nhỏ trong bảng ---------- */
+.btn-sm { padding: 6px 12px; font-size: 0.85rem; }
+
+/* ---------- Popup z-index ---------- */
+#wordEditorOverlay { z-index: 1000; }
+#fetchImageOverlay { z-index: 1100; }
+#loadingOverlay { z-index: 1200; }
+
+/* Lưới ảnh Unsplash */
+.unsplash-thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 3px solid transparent;
+  transition: border-color 0.2s, transform 0.1s;
+}
+.unsplash-thumb:hover { border-color: var(--primary-start); transform: scale(1.05); }
+.unsplash-thumb.selected { border-color: var(--success); }
+
+#wordEditorOverlay .modal {
+  margin: auto;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 480px) {
+  .app-container { padding: 12px; }
+  .card { padding: 20px; border-radius: 16px; }
+  .logo { font-size: 2.4rem; }
+  .word-en { font-size: 2rem; }
+  .btn-primary, .btn-danger { width: 100%; }
+  .word-table { font-size: 0.85rem; }
+  .word-table th, .word-table td { padding: 6px 4px; }
+}
