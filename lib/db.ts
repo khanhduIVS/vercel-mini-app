@@ -12,7 +12,8 @@ export { sql };
 
 /** Function-call style query (for dynamic SQL with runtime-built WHERE clauses). */
 export async function sqlQuery<T = any>(query: string, params: (string | number)[] = []): Promise<T[]> {
-  return (sql as unknown as (q: string, p?: unknown[]) => Promise<T[]>)(query, params);
+  // neon() attaches a .query method for conventional call style with $1, $2 placeholders
+  return sql.query(query, params) as Promise<T[]>;
 }
 
 /** Column-select helper — returns rows with camelCase keys matching the frontend. */
