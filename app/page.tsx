@@ -527,22 +527,23 @@ export default function Home() {
     }
   };
 
-  const autoFindImage = async (word: Vocab) => {
-    if (!word.englishWord.trim()) {
-      showToast('Từ không có nội dung tiếng Anh', 'error');
-      return;
-    }
-    setLoading(true);
-    setLoadingMessage('Đang tự động tìm ảnh...');
+  /** Fetch the first Unsplash result for a word and PUT-update its imageUrl. Returns true on success. */
+  const BULK_IMAGE_BATCH_SIZE = 10;
+
+  type FetchImageResult = 'success' | 'not_found' | 'rate_limited' | 'error';
+
+  /** Fetch the first Unsplash result for a word and PUT-update its imageUrl. */
+  const fetchAndApplyImage = async (word: Vocab): Promise<FetchImageResult> => {
+    if (!word.englishWord.trim()) return 'not_found';
     try {
       const params = new URLSearchParams({ word: word.englishWord.trim(), page: '1', pageSize: '1' });
       const res = await fetch(`/api/unsplash?${params}`);
-      if (!res.ok) throw new Error();
+      if (res.status === 429) return 'rate_limited';
+      if (!res.ok) return 'error';
+
       const images: UnsplashImage[] = await res.json();
-      if (!Array.isArray(images) || images.length === 0) {
-        showToast(`Không tìm thấy ảnh cho từ "${word.englishWord}"`, 'error');
-        return;
-      }
+      if (!Array.isArray(images) || images.length === 0) return 'not_found';
+
       const imageUrl = images[0].regular;
       const putRes = await fetch(`/api/vocab/${word.wordId}`, {
         method: 'PUT',
@@ -555,11 +556,103 @@ export default function Home() {
           imageUrl,
         }),
       });
-      if (!putRes.ok) throw new Error();
+      return putRes.ok ? 'success' : 'error';
+    } catch {
+      return 'error';
+    }
+  };
+
+  const autoFindImage = async (word: Vocab) => {
+    if (!word.englishWord.trim()) {
+      showToast('Từ không có nội dung tiếng Anh', 'error');
+      return;
+    }
+    setLoading(true);
+    setLoadingMessage('Đang tự động tìm ảnh...');
+    try {
+      const result = await fetchAndApplyImage(word);
+      if (result === 'rate_limited') {
+        showToast('Đã hết lượt gọi Unsplash API. Vui lòng thực hiện lại sau.', 'error', 4000);
+        return;
+      }
+      if (result !== 'success') {
+        showToast(`Không tìm thấy ảnh cho từ "${word.englishWord}"`, 'error');
+        return;
+      }
       showToast(`Đã tự động cập nhật ảnh cho "${word.englishWord}"`, 'success');
       renderWordsManager(managerSearch, managerTopicFilter, managerPage);
     } catch {
       showToast('Lỗi khi tự động tìm ảnh', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Cập nhật ảnh cho nhiều từ cùng lúc, xử lý tuần tự theo từng lô (batch) 10 từ.
+   * Nếu không chọn chủ đề (managerTopicFilter rỗng) -> cập nhật tất cả từ.
+   * Nếu có chọn chủ đề -> chỉ cập nhật các từ thuộc chủ đề đó.
+   * Nếu gặp lỗi hết lượt gọi API (rate limit) -> dừng ngay và báo lỗi để thực hiện lại sau.
+   */
+  const bulkAutoFindImages = async () => {
+    const topic = managerTopicFilter;
+    const confirmMsg = topic
+      ? `Tự động tìm và cập nhật ảnh cho TẤT CẢ từ thuộc chủ đề "${topic}"?`
+      : 'Tự động tìm và cập nhật ảnh cho TẤT CẢ từ vựng (mọi chủ đề)?';
+    if (!confirm(confirmMsg)) return;
+
+    setLoading(true);
+    setLoadingMessage('Đang tải danh sách từ...');
+    try {
+      const params = new URLSearchParams({ search: '', topic, page: '1', pageSize: '10000' });
+      const res = await fetch(`/api/vocab?${params}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const words: Vocab[] = data.words || [];
+
+      if (words.length === 0) {
+        showToast('Không có từ nào để cập nhật ảnh', 'info');
+        return;
+      }
+
+      let successCount = 0;
+      let failCount = 0;
+      let wasRateLimited = false;
+      let processedCount = 0;
+
+      outer:
+      for (let batchStart = 0; batchStart < words.length; batchStart += BULK_IMAGE_BATCH_SIZE) {
+        const batch = words.slice(batchStart, batchStart + BULK_IMAGE_BATCH_SIZE);
+        for (const w of batch) {
+          processedCount++;
+          setLoadingMessage(`Đang cập nhật ảnh ${processedCount}/${words.length} (lô ${Math.floor(batchStart / BULK_IMAGE_BATCH_SIZE) + 1}): ${w.englishWord}...`);
+          const result = await fetchAndApplyImage(w);
+          if (result === 'rate_limited') {
+            wasRateLimited = true;
+            break outer;
+          }
+          if (result === 'success') successCount++; else failCount++;
+        }
+      }
+
+      if (wasRateLimited) {
+        showToast(
+          `⚠️ Đã hết lượt gọi Unsplash API sau khi xử lý ${processedCount - 1}/${words.length} từ ` +
+          `(✅ ${successCount} thành công, ❌ ${failCount} thất bại).\n` +
+          `Vui lòng thực hiện lại sau để cập nhật các từ còn lại.`,
+          'error',
+          7000
+        );
+      } else {
+        showToast(
+          `Hoàn tất cập nhật ảnh: ✅ ${successCount} thành công, ❌ ${failCount} thất bại`,
+          failCount > 0 ? 'info' : 'success',
+          5000
+        );
+      }
+      renderWordsManager(managerSearch, managerTopicFilter, managerPage);
+    } catch {
+      showToast('Lỗi khi cập nhật ảnh hàng loạt', 'error');
     } finally {
       setLoading(false);
     }
@@ -943,6 +1036,13 @@ export default function Home() {
                 ))}
               </select>
             </div>
+            <button
+              className="btn btn-secondary btn-block mt-8"
+              onClick={bulkAutoFindImages}
+              title={managerTopicFilter ? `Cập nhật ảnh cho chủ đề "${managerTopicFilter}"` : 'Cập nhật ảnh cho tất cả từ'}
+            >
+              🖼️ {managerTopicFilter ? `Cập nhật ảnh cho chủ đề "${managerTopicFilter}"` : 'Cập nhật ảnh cho tất cả từ'}
+            </button>
           </div>
 
           <div className="mt-16" style={{ maxHeight: '400px', overflowY: 'auto' }}>
@@ -1101,11 +1201,18 @@ export default function Home() {
           </div>
 
           {editImageUrl && (
-            <div style={{ marginTop: '16px', textAlign: 'center' }}>
+            <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center' }}>
               <img
                 src={editImageUrl}
                 alt="Preview"
-                style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', border: '1px solid #eee' }}
+                style={{
+                  display: 'block',
+                  margin: '0 auto',
+                  maxWidth: '100%',
+                  maxHeight: '200px',
+                  borderRadius: '8px',
+                  border: '1px solid #eee',
+                }}
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
             </div>
