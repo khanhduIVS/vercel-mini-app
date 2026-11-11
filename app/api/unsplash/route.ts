@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { UnsplashImage } from '@/lib/types';
 
-/** GET /api/unsplash?word=xxx — search Unsplash for images matching a word. */
+/** GET /api/unsplash?word=xxx&page=1&pageSize=20 — search Unsplash for images matching a word. */
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -13,7 +13,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Chưa cấu hình UNSPLASH_ACCESS_KEY' }, { status: 500 });
     }
 
-    const url = `https://api.unsplash.com/search/photos?page=1&per_page=20&query=${encodeURIComponent(word)}`;
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+    const pageSize = Math.min(30, Math.max(1, parseInt(searchParams.get('pageSize') || '20', 10) || 20));
+
+    const url = `https://api.unsplash.com/search/photos?page=${page}&per_page=${pageSize}&query=${encodeURIComponent(word)}`;
     const res = await fetch(url, { headers: { Authorization: `Client-ID ${apiKey}` } });
     if (!res.ok) return NextResponse.json([]);
 
