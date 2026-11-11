@@ -18,6 +18,13 @@ export async function GET(request: Request) {
 
     const url = `https://api.unsplash.com/search/photos?page=${page}&per_page=${pageSize}&query=${encodeURIComponent(word)}`;
     const res = await fetch(url, { headers: { Authorization: `Client-ID ${apiKey}` } });
+
+    if (res.status === 403 || res.status === 429) {
+      return NextResponse.json(
+        { error: 'Đã hết lượt gọi Unsplash API (rate limit). Vui lòng thử lại sau.' },
+        { status: 429 }
+      );
+    }
     if (!res.ok) return NextResponse.json([]);
 
     const data = await res.json();
