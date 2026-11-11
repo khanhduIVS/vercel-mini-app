@@ -74,6 +74,7 @@ export default function Home() {
   const [editMeaning, setEditMeaning] = useState('');
   const [editTopic, setEditTopic] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
+  const [editImageError, setEditImageError] = useState(false);
 
   // --- Fetch image state ---
   const [showFetchImage, setShowFetchImage] = useState(false);
@@ -444,6 +445,7 @@ export default function Home() {
       setEditMeaning(word.vietnameseMeaning);
       setEditTopic(word.topic || '');
       setEditImageUrl(word.imageUrl || '');
+      setEditImageError(false);
       setShowWordEditor(true);
     } catch {
       showToast('Không thể tải thông tin từ', 'error');
@@ -461,6 +463,7 @@ export default function Home() {
     setEditMeaning('');
     setEditTopic('');
     setEditImageUrl('');
+    setEditImageError(false);
   };
 
   const saveWord = async () => {
@@ -524,6 +527,44 @@ export default function Home() {
     }
   };
 
+  const autoFindImage = async (word: Vocab) => {
+    if (!word.englishWord.trim()) {
+      showToast('Từ không có nội dung tiếng Anh', 'error');
+      return;
+    }
+    setLoading(true);
+    setLoadingMessage('Đang tự động tìm ảnh...');
+    try {
+      const params = new URLSearchParams({ word: word.englishWord.trim(), page: '1', pageSize: '1' });
+      const res = await fetch(`/api/unsplash?${params}`);
+      if (!res.ok) throw new Error();
+      const images: UnsplashImage[] = await res.json();
+      if (!Array.isArray(images) || images.length === 0) {
+        showToast(`Không tìm thấy ảnh cho từ "${word.englishWord}"`, 'error');
+        return;
+      }
+      const imageUrl = images[0].regular;
+      const putRes = await fetch(`/api/vocab/${word.wordId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ipa: word.ipa || '',
+          wordType: word.wordType || '',
+          vietnameseMeaning: word.vietnameseMeaning || '',
+          topic: word.topic || '',
+          imageUrl,
+        }),
+      });
+      if (!putRes.ok) throw new Error();
+      showToast(`Đã tự động cập nhật ảnh cho "${word.englishWord}"`, 'success');
+      renderWordsManager(managerSearch, managerTopicFilter, managerPage);
+    } catch {
+      showToast('Lỗi khi tự động tìm ảnh', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ===================================================================
   //  UNSPLASH IMAGE SEARCH
   // ===================================================================
@@ -575,6 +616,7 @@ export default function Home() {
   const useSelectedImage = () => {
     if (fetchImageSelectedUrl) {
       setEditImageUrl(fetchImageSelectedUrl);
+      setEditImageError(false);
       setShowFetchImage(false);
       showToast('Đã thêm link ảnh', 'success');
     }
@@ -936,6 +978,14 @@ export default function Home() {
                           onClick={() => openWordEditor(w.wordId)}
                         >
                           ✏️
+                        </button>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          style={{ marginLeft: '4px' }}
+                          title="Tự động tìm ảnh"
+                          onClick={() => autoFindImage(w)}
+                        >
+                          🖼️
                         </button>
                         <button
                           className="btn btn-danger btn-sm"
