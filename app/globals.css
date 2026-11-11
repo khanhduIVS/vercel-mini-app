@@ -228,7 +228,10 @@ label.field-label {
 .overlay.active { display: flex; }
 
 /* ---------- Modal ---------- */
-.modal { background: #fff; border-radius: 18px; padding: 24px; width: 100%; max-width: 480px; }
+.modal {
+  background: #fff; border-radius: 18px; padding: 24px; width: 100%; max-width: 480px;
+  max-height: 90vh; overflow-y: auto;
+}
 .modal textarea {
   width: 100%; min-height: 150px; padding: 12px; border: 1px solid #cbd5e0;
   border-radius: 10px; font-family: monospace; font-size: 14px; resize: vertical;
@@ -280,12 +283,6 @@ label.field-label {
 }
 .unsplash-thumb:hover { border-color: var(--primary-start); transform: scale(1.05); }
 .unsplash-thumb.selected { border-color: var(--success); }
-
-#wordEditorOverlay .modal {
-  margin: auto;
-  max-height: 90vh;
-  overflow-y: auto;
-}
 
 /* ---------- Responsive ---------- */
 @media (max-width: 480px) {
