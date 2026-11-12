@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { sql, ensureTables } from '@/lib/db';
 
+// Route không đọc searchParams/request nên Next.js có thể coi là static và cache cứng
+// kết quả của lần gọi đầu tiên (giống sự cố đã gặp ở /api/topics). Buộc render động.
+export const dynamic = 'force-dynamic';
+
 /** GET /api/users — list all user names (sorted). */
 export async function GET() {
   try {
