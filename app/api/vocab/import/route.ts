@@ -59,11 +59,29 @@ async function resolveRowTopics(rows: ParsedRow[]): Promise<ResolvedRow[]> {
 }
 
 /**
+ * Loại bỏ các dòng trùng hệt khóa (english, wordType) trong cùng 1 lần import —
+ * 1 câu lệnh ON CONFLICT không thể cập nhật cùng 1 dòng 2 lần. Giữ dòng xuất hiện SAU CÙNG
+ * trong file (coi như dữ liệu mới nhất ghi đè dữ liệu cũ hơn ở phía trên, giống hành vi
+ * tuần tự tự nhiên khi import). Dòng cùng từ nhưng KHÁC loại từ không bị ảnh hưởng —
+ * chúng là 2 bản ghi hợp lệ riêng biệt.
+ */
+function dedupeRowsForBatch(rows: ResolvedRow[]): ResolvedRow[] {
+  const map = new Map<string, ResolvedRow>();
+  for (const row of rows) {
+    const key = `${row.english.toLowerCase()}|${row.wordType.toLowerCase()}`;
+    map.set(key, row); // dòng sau đè dòng trước nếu trùng khóa
+  }
+  return Array.from(map.values());
+}
+
+/**
  * Upsert hàng loạt bằng 1 câu lệnh INSERT ... ON CONFLICT DO UPDATE cho mỗi batch,
  * thay vì 1 SELECT + 1 INSERT/UPDATE riêng cho từng dòng. Giảm số round-trip DB
  * từ O(n) query xuống O(n / BULK_BATCH_SIZE), tránh timeout khi import file lớn (vài nghìn dòng).
  * `xmax = 0` là cách PostgreSQL phân biệt dòng vừa được INSERT mới (true) với dòng bị UPDATE (false)
  * trong cùng 1 câu lệnh ON CONFLICT.
+ * Khóa trùng lặp là (english_word, word_type) — cùng từ nhưng khác loại từ (ví dụ "good" adj
+ * và "good" n) là 2 bản ghi riêng biệt, không ghi đè lẫn nhau.
  * Lưu ý: topic_id rỗng (null) nghĩa là "không chỉ định" trong dòng CSV này — giữ nguyên
  * topic_id cũ của bản ghi đã tồn tại (COALESCE), không ghi đè thành NULL.
  */
@@ -81,9 +99,8 @@ async function bulkUpsertBatch(batch: ResolvedRow[]): Promise<{ imported: number
   const query = `
     INSERT INTO vocab (english_word, ipa, word_type, vietnamese_meaning, topic_id, image_url)
     VALUES ${valuesSql.join(', ')}
-    ON CONFLICT (LOWER(english_word)) DO UPDATE SET
+    ON CONFLICT (LOWER(english_word), LOWER(word_type)) DO UPDATE SET
       ipa = COALESCE(NULLIF(EXCLUDED.ipa, ''), vocab.ipa),
-      word_type = COALESCE(NULLIF(EXCLUDED.word_type, ''), vocab.word_type),
       vietnamese_meaning = COALESCE(NULLIF(EXCLUDED.vietnamese_meaning, ''), vocab.vietnamese_meaning),
       topic_id = COALESCE(EXCLUDED.topic_id, vocab.topic_id),
       image_url = COALESCE(NULLIF(EXCLUDED.image_url, ''), vocab.image_url)
@@ -96,12 +113,15 @@ async function bulkUpsertBatch(batch: ResolvedRow[]): Promise<{ imported: number
   return { imported, updated };
 }
 
-/** Fallback chậm (SELECT + INSERT/UPDATE từng dòng) — dùng khi chưa có unique index hỗ trợ ON CONFLICT. */
+/**
+ * Fallback chậm (SELECT + INSERT/UPDATE từng dòng) — dùng khi chưa có unique index hỗ trợ ON CONFLICT.
+ * Khớp theo CẢ (english_word, word_type) — cùng từ nhưng khác loại từ là 2 bản ghi riêng biệt.
+ */
 async function upsertRowSlow(row: ResolvedRow): Promise<'imported' | 'updated' | 'unchanged'> {
   const { english, ipa, wordType, meaning, topicId, imageUrl } = row;
   const existing = await sql`
     SELECT word_id, ipa, word_type, vietnamese_meaning, topic_id, image_url
-    FROM vocab WHERE LOWER(english_word) = LOWER(${english})
+    FROM vocab WHERE LOWER(english_word) = LOWER(${english}) AND LOWER(word_type) = LOWER(${wordType})
   `;
 
   if (existing.length === 0) {
@@ -114,14 +134,12 @@ async function upsertRowSlow(row: ResolvedRow): Promise<'imported' | 'updated' |
 
   const cur = existing[0];
   const newIpa = ipa || cur.ipa;
-  const newType = wordType || cur.word_type;
   const newMeaning = meaning || cur.vietnamese_meaning;
   const newTopicId = topicId || cur.topic_id;
   const newImageUrl = imageUrl || cur.image_url;
 
   const changed =
     newIpa !== cur.ipa ||
-    newType !== cur.word_type ||
     newMeaning !== cur.vietnamese_meaning ||
     newTopicId !== cur.topic_id ||
     newImageUrl !== cur.image_url;
@@ -130,7 +148,7 @@ async function upsertRowSlow(row: ResolvedRow): Promise<'imported' | 'updated' |
 
   await sql`
     UPDATE vocab
-    SET ipa = ${newIpa}, word_type = ${newType}, vietnamese_meaning = ${newMeaning},
+    SET ipa = ${newIpa}, vietnamese_meaning = ${newMeaning},
         topic_id = ${newTopicId}, image_url = ${newImageUrl}
     WHERE word_id = ${cur.word_id}
   `;
@@ -148,12 +166,16 @@ export async function POST(request: Request) {
     }
 
     const { rows: parsedRows, errors } = parseCsvRows(text);
-    const rows = await resolveRowTopics(parsedRows);
+    const resolvedRows = await resolveRowTopics(parsedRows);
     let imported = 0, updated = 0, unchanged = 0;
 
     const canBulkUpsert = await hasVocabUpsertIndex();
 
     if (canBulkUpsert) {
+      // Dedupe theo (english, wordType) trong TOÀN BỘ file trước khi chia batch —
+      // tránh lỗi "ON CONFLICT DO UPDATE command cannot affect row a second time"
+      // khi 1 batch có 2 dòng trùng hệt cả từ và loại từ.
+      const rows = dedupeRowsForBatch(resolvedRows);
       // Chế độ nhanh: upsert theo batch, mỗi batch 1 round-trip DB.
       for (let i = 0; i < rows.length; i += BULK_BATCH_SIZE) {
         const batch = rows.slice(i, i + BULK_BATCH_SIZE);
@@ -164,9 +186,9 @@ export async function POST(request: Request) {
       // Bulk upsert không phân biệt được "unchanged" vs "updated" (ON CONFLICT luôn chạy UPDATE SET),
       // nên mọi dòng trùng đã tồn tại đều được tính là "updated" dù giá trị có thể giống hệt cũ.
     } else {
-      // Fallback chậm: xử lý tuần tự từng dòng (chỉ dùng khi dữ liệu cũ có english_word trùng
-      // khiến không tạo được unique index cho ON CONFLICT).
-      for (const row of rows) {
+      // Fallback chậm: xử lý tuần tự từng dòng (chỉ dùng khi dữ liệu cũ có (english_word, word_type)
+      // trùng khiến không tạo được unique index cho ON CONFLICT).
+      for (const row of resolvedRows) {
         const outcome = await upsertRowSlow(row);
         if (outcome === 'imported') imported++;
         else if (outcome === 'updated') updated++;
