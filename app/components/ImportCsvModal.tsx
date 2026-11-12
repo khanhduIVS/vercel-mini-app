@@ -17,6 +17,7 @@ export function ImportCsvModal({ importCsv, onImport }: ImportCsvModalProps) {
   return (
     <div className={`overlay ${showImport ? 'active' : ''}`}>
       <div className="modal">
+      <div className="modal-scroll">
         <div className="row-between">
           <h3 style={{ margin: 0 }}>Thêm từ vựng</h3>
           <button className="btn btn-secondary" onClick={hideImportModal}>✕</button>
@@ -56,6 +57,7 @@ export function ImportCsvModal({ importCsv, onImport }: ImportCsvModalProps) {
           <button className="btn btn-secondary" onClick={hideImportModal}>Hủy</button>
           <button className="btn btn-primary" onClick={onImport}>Import</button>
         </div>
+      </div>
       </div>
     </div>
   );
