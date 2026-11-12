@@ -6,18 +6,10 @@ import { useTopics } from '@/app/hooks/useTopics';
 import { useUserFlow } from '@/app/hooks/useUserFlow';
 import { useDashboard } from '@/app/hooks/useDashboard';
 import { useLearnSession } from '@/app/hooks/useLearnSession';
-import { useImportCsv } from '@/app/hooks/useImportCsv';
-import { useWordsManager } from '@/app/hooks/useWordsManager';
-import { useWordEditor } from '@/app/hooks/useWordEditor';
-import { useUnsplashSearch } from '@/app/hooks/useUnsplashSearch';
 
 import { UserSelectionView } from '@/app/components/UserSelectionView';
 import { DashboardView } from '@/app/components/DashboardView';
 import { LearnView } from '@/app/components/LearnView';
-import { ImportCsvModal } from '@/app/components/ImportCsvModal';
-import { WordsManagerModal } from '@/app/components/WordsManagerModal';
-import { WordEditorModal } from '@/app/components/WordEditorModal';
-import { UnsplashSearchModal } from '@/app/components/UnsplashSearchModal';
 import { LoadingOverlay } from '@/app/components/LoadingOverlay';
 import { Toast } from '@/app/components/Toast';
 
@@ -25,6 +17,7 @@ import { Toast } from '@/app/components/Toast';
 //  Page: lắp ráp các hook theo domain + component theo view/modal.
 //  Toàn bộ state/logic nghiệp vụ nằm trong app/hooks/*, gọi API qua app/services/*.
 //  File này chỉ chịu trách nhiệm nối các hook lại với nhau và render layout tổng.
+//  Chức năng "Thêm từ mới" và "Quản lý từ vựng" đã di chuyển sang trang /admin.
 // ---------------------------------------------------------------------------
 export default function Home() {
   const ui = useUiFeedback();
@@ -39,10 +32,6 @@ export default function Home() {
 
   const userFlow = useUserFlow(ui, handleEnterApp);
   const learnSession = useLearnSession(ui, userFlow.currentView);
-  const importCsv = useImportCsv(ui);
-  const wordsManager = useWordsManager(ui, topics.loadTopics);
-  const wordEditor = useWordEditor(ui);
-  const unsplashSearch = useUnsplashSearch(ui);
 
   // Logout: dừng countdown + hủy phát âm đang chạy trước khi quay lại view chọn user
   const handleLogout = () => {
@@ -63,22 +52,6 @@ export default function Home() {
     if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
     userFlow.setCurrentView('dashboard');
     dashboard.loadDashboard(userFlow.currentUser);
-  };
-
-  // Đóng Words Manager cũng đóng luôn Word Editor (giữ hành vi gốc)
-  const handleHideWordsManagerModal = () => {
-    wordsManager.hideWordsManagerModal();
-    wordEditor.closeWordEditor();
-  };
-
-  // Mở modal tìm ảnh Unsplash từ trong Word Editor, dùng từ tiếng Anh đang sửa làm từ khóa
-  const handleFetchImageFromUnsplash = () => {
-    unsplashSearch.openFetchImageModal(wordEditor.editEnglish);
-  };
-
-  // Áp dụng ảnh đã chọn từ modal Unsplash vào ô link ảnh của Word Editor
-  const handleUseSelectedImage = () => {
-    unsplashSearch.useSelectedImage((url) => wordEditor.setEditImageUrl(url));
   };
 
   return (
@@ -105,8 +78,6 @@ export default function Home() {
         setWordCount={dashboard.setWordCount}
         onLogout={handleLogout}
         onStartLearningSession={handleStartLearningSession}
-        onShowImportModal={importCsv.showImportModal}
-        onShowWordsManagerModal={wordsManager.showWordsManagerModal}
         onRefreshDashboard={() => dashboard.refreshDashboard(userFlow.currentUser)}
       />
 
@@ -122,30 +93,6 @@ export default function Home() {
       />
 
       <LoadingOverlay loading={ui.loading} loadingMessage={ui.loadingMessage} />
-
-      <ImportCsvModal
-        importCsv={importCsv}
-        onImport={() => importCsv.doImport(() => dashboard.loadDashboard(userFlow.currentUser))}
-      />
-
-      <WordsManagerModal
-        manager={wordsManager}
-        topics={topics.topics}
-        onHide={handleHideWordsManagerModal}
-        onEditWord={wordEditor.openWordEditor}
-      />
-
-      <WordEditorModal
-        editor={wordEditor}
-        onSave={() => wordEditor.saveWord(wordsManager.refreshCurrentPage)}
-        onDelete={() => wordEditor.deleteCurrentWord(wordsManager.refreshCurrentPage)}
-        onFetchImageFromUnsplash={handleFetchImageFromUnsplash}
-      />
-
-      <UnsplashSearchModal
-        search={unsplashSearch}
-        onUseSelectedImage={handleUseSelectedImage}
-      />
 
       <Toast toast={ui.toast} />
     </div>
