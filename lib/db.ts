@@ -76,13 +76,21 @@ export async function ensureTables() {
       word_id             UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
       english_word        VARCHAR(255) NOT NULL,
       ipa                 TEXT DEFAULT '',
-      word_type           VARCHAR(20) DEFAULT '',
+      word_type           VARCHAR(50) DEFAULT '',
       vietnamese_meaning  TEXT NOT NULL,
       topic_id            UUID REFERENCES topics(topic_id),
       image_url           TEXT DEFAULT '',
       created_date        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `;
+  // Nới cột word_type nếu bảng đã tồn tại từ trước với kích thước cũ (VARCHAR(20)) —
+  // CREATE TABLE IF NOT EXISTS không tự alter cột của bảng đã có.
+  // Một số giá trị loại từ hợp lệ (ví dụ "adj, adv, exclamation") dài hơn 20 ký tự.
+  try {
+    await sql`ALTER TABLE vocab ALTER COLUMN word_type TYPE VARCHAR(50)`;
+  } catch (e) {
+    console.error('Không thể nới cột word_type lên VARCHAR(50):', e);
+  }
 
   // --- Migration 1 lần: bảng vocab schema cũ (cột `topic` text, chưa có `topic_id`) ---
   // Phát hiện bằng cách kiểm tra information_schema; nếu đúng, drop + tạo lại vocab
@@ -105,7 +113,7 @@ export async function ensureTables() {
         word_id             UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
         english_word        VARCHAR(255) NOT NULL,
         ipa                 TEXT DEFAULT '',
-        word_type           VARCHAR(20) DEFAULT '',
+        word_type           VARCHAR(50) DEFAULT '',
         vietnamese_meaning  TEXT NOT NULL,
         topic_id            UUID REFERENCES topics(topic_id),
         image_url           TEXT DEFAULT '',
