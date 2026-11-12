@@ -7,8 +7,9 @@ import type { UiFeedback } from './useUiFeedback';
 
 export interface UseDashboardResult {
   stats: UserStats | null;
+  /** topicId đã chọn, hoặc sentinel 'all' nghĩa là không lọc theo chủ đề. */
   selectedTopic: string;
-  setSelectedTopic: (topic: string) => void;
+  setSelectedTopic: (topicId: string) => void;
   wordCount: number;
   setWordCount: (count: number) => void;
   loadDashboard: (userName: string) => Promise<void>;
