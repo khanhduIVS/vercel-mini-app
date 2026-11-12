@@ -1,10 +1,11 @@
 'use client';
 
 import type { UseWordsManagerResult } from '@/app/hooks/useWordsManager';
+import type { Topic } from '@/lib/types';
 
 export interface WordsManagerModalProps {
   manager: UseWordsManagerResult;
-  topics: string[];
+  topics: Topic[];
   onHide: () => void;
   onEditWord: (wordId: string) => void;
 }
@@ -45,16 +46,17 @@ export function WordsManagerModal({ manager, topics, onHide, onEditWord }: Words
             >
               <option value="">Tất cả chủ đề</option>
               {topics.map((t) => (
-                <option key={t} value={t}>{t}</option>
+                <option key={t.topicId} value={t.topicId}>{t.name}</option>
               ))}
             </select>
           </div>
           <button
             className="btn btn-secondary btn-block mt-8"
             onClick={bulkAutoFindImages}
-            title={managerTopicFilter ? `Cập nhật ảnh cho chủ đề "${managerTopicFilter}"` : 'Cập nhật ảnh cho tất cả từ'}
           >
-            🖼️ {managerTopicFilter ? `Cập nhật ảnh cho chủ đề "${managerTopicFilter}"` : 'Cập nhật ảnh cho tất cả từ'}
+            🖼️ {managerTopicFilter
+              ? `Cập nhật ảnh cho chủ đề "${topics.find((t) => t.topicId === managerTopicFilter)?.name || ''}"`
+              : 'Cập nhật ảnh cho tất cả từ'}
           </button>
         </div>
 
