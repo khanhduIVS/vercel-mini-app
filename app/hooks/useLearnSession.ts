@@ -22,8 +22,8 @@ export interface UseLearnSessionResult {
   currentIndex: number;
   currentWord: Vocab | undefined;
   countdown: number;
-  /** Trả về true nếu lấy được danh sách từ và sẵn sàng chuyển sang view học. */
-  startLearningSession: (userName: string, wordCount: number, selectedTopic: string) => Promise<boolean>;
+  /** Trả về true nếu lấy được danh sách từ và sẵn sàng chuyển sang view học. `selectedTopicId` là topicId hoặc 'all'. */
+  startLearningSession: (userName: string, wordCount: number, selectedTopicId: string) => Promise<boolean>;
   nextWord: () => void;
   prevWord: () => void;
   stopCountdown: () => void;
@@ -47,12 +47,12 @@ export function useLearnSession(ui: UiFeedback, currentView: AppView): UseLearnS
     }
   });
 
-  const startLearningSession = async (userName: string, wordCount: number, selectedTopic: string): Promise<boolean> => {
-    const topic = selectedTopic === 'all' ? '' : selectedTopic;
+  const startLearningSession = async (userName: string, wordCount: number, selectedTopicId: string): Promise<boolean> => {
+    const topicId = selectedTopicId === 'all' ? '' : selectedTopicId;
     ui.setLoading(true);
     ui.setLoadingMessage('Đang chuẩn bị bài học...');
     try {
-      const data = await fetchLearnSession(userName, wordCount, topic);
+      const data = await fetchLearnSession(userName, wordCount, topicId);
       if (!data.words || data.words.length === 0) {
         ui.showToast('Chưa có từ nào trong kho. Vui lòng thêm từ vựng.', 'info');
         return false;
