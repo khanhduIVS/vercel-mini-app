@@ -165,14 +165,36 @@ label.field-label {
 }
 .word-ipa { font-size: 1.3rem; color: #805ad5; margin-top: 6px; font-family: 'Segoe UI', sans-serif; }
 .word-type-row { text-align: center; margin-top: 8px; }
-.word-image {
-  max-width: 180px;
-  max-height: 180px;
+/* Khung ảnh cố định kích thước để layout không bị xô lệch khi chuyển qua từ khác
+   (có ảnh/không ảnh/ảnh lỗi/tỉ lệ khác nhau đều chiếm cùng 1 khoảng không gian). */
+.word-image-frame {
+  width: 180px;
+  height: 180px;
+  margin: 0 auto 12px;
   border-radius: 12px;
-  margin-bottom: 12px;
-  object-fit: contain;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
+.word-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.word-image-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #a0aec0;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.word-image-placeholder .icon { font-size: 1.8rem; }
 .word-divider { height: 1px; background: #cbd5e0; margin: 18px auto; width: 60%; }
 .word-vi { font-size: 1.8rem; color: #2b6cb0; font-weight: 700; }
 
@@ -187,6 +209,41 @@ label.field-label {
 /* ---------- Điều hướng trước / kế tiếp ---------- */
 .nav-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
 .nav-buttons .btn { width: 100%; }
+
+/* ---------- Thanh điều hướng câu hỏi (danh sách từ trong buổi học) ---------- */
+.question-nav {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.question-nav-item {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid #e2e8f0;
+  background: #fff;
+  color: #4a5568;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.question-nav-item:hover { border-color: var(--primary-start); }
+.question-nav-item.visited {
+  background: #edf2f7;
+  border-color: #cbd5e0;
+  color: #718096;
+}
+.question-nav-item.current {
+  background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
+  border-color: transparent;
+  color: #fff;
+}
 
 /* ---------- Bộ đếm ngược ---------- */
 .countdown-badge {
