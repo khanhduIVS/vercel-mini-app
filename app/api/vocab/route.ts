@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { sql, ensureTables, VOCAB_COLUMNS, VOCAB_TOPIC_JOIN, sqlQuery, resolveTopicIds } from '@/lib/db';
+import { sql, ensureTables, VOCAB_COLUMNS, VOCAB_TOPIC_JOIN, sqlQuery, resolveTopicIds, InvalidTopicNameError } from '@/lib/db';
 import type { Vocab } from '@/lib/types';
 
 /** GET /api/vocab?search=&topicId=&page=1&pageSize=20 — paginated list for management. */
@@ -91,7 +91,13 @@ export async function POST(request: Request) {
 
     const created = { ...rows[0], topic: topicName } as Vocab;
     return NextResponse.json(created, { status: 201 });
-  } catch {
+  } catch (e) {
+    if (e instanceof InvalidTopicNameError) {
+      return NextResponse.json(
+        { error: `Tên chủ đề không hợp lệ (trông giống UUID): ${e.invalidNames.join(', ')}. Vui lòng nhập tên chủ đề dạng chữ.` },
+        { status: 400 }
+      );
+    }
     return NextResponse.json({ error: 'Không thể thêm từ vựng' }, { status: 500 });
   }
 }
