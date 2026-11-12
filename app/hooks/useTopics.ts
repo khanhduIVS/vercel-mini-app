@@ -2,9 +2,10 @@
 
 import { useCallback, useState } from 'react';
 import { fetchTopics } from '@/app/services/topicsService';
+import type { Topic } from '@/lib/types';
 
 export interface UseTopicsResult {
-  topics: string[];
+  topics: Topic[];
   loadTopics: () => Promise<void>;
 }
 
@@ -14,7 +15,7 @@ export interface UseTopicsResult {
  * Lỗi được bỏ qua âm thầm (giữ nguyên hành vi gốc) vì đây là dữ liệu phụ trợ, không chặn luồng chính.
  */
 export function useTopics(): UseTopicsResult {
-  const [topics, setTopics] = useState<string[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
 
   const loadTopics = useCallback(async () => {
     try {
