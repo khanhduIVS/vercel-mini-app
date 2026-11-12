@@ -9,18 +9,20 @@ export interface WordEditorModalProps {
   topics: Topic[];
   onSave: () => void;
   onDelete: () => void;
+  onFetchImageFromUnsplash: () => void;
 }
 
 /**
- * Modal "Chỉnh sửa từ": sửa phiên âm/loại từ/nghĩa/chủ đề của 1 từ vựng, hoặc xóa từ.
- * Ô "Link ảnh" (và nút tìm ảnh Unsplash) đang bị ẩn khỏi giao diện theo yêu cầu —
- * dữ liệu imageUrl hiện có của từ vẫn được giữ nguyên trong DB, không bị xóa.
+ * Modal "Chỉnh sửa từ": sửa phiên âm/loại từ/nghĩa/chủ đề/ảnh của 1 từ vựng, hoặc xóa từ.
+ * Ô hiển thị link ảnh thô (text input + preview) bị ẩn khỏi giao diện theo yêu cầu —
+ * vẫn giữ nút "Tìm ảnh từ Unsplash" để gán ảnh cho từ, chỉ không hiện URL/ảnh preview ra màn hình.
  */
-export function WordEditorModal({ editor, topics, onSave, onDelete }: WordEditorModalProps) {
+export function WordEditorModal({ editor, topics, onSave, onDelete, onFetchImageFromUnsplash }: WordEditorModalProps) {
   const {
     showWordEditor, editEnglish,
     editIpa, setEditIpa, editWordType, setEditWordType,
     editMeaning, setEditMeaning, editTopic, setEditTopic,
+    editImageUrl,
     closeWordEditor,
   } = editor;
 
@@ -98,8 +100,12 @@ export function WordEditorModal({ editor, topics, onSave, onDelete }: WordEditor
           </select>
         </div>
 
-        {/* Link ảnh: ẩn khỏi giao diện chỉnh sửa theo yêu cầu — dữ liệu imageUrl hiện có vẫn được
-            giữ nguyên, không bị xóa, chỉ không hiển thị/sửa được ở đây nữa. */}
+        <div className="mt-16">
+          <label className="field-label">Hình ảnh</label>
+          <button className="btn btn-secondary btn-block" onClick={onFetchImageFromUnsplash}>
+            ⚡ {editImageUrl ? 'Đổi ảnh từ Unsplash' : 'Tìm ảnh từ Unsplash'}
+          </button>
+        </div>
 
         <div className="modal-actions mt-16">
           <button className="btn btn-secondary" onClick={closeWordEditor}>Hủy</button>
