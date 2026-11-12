@@ -92,38 +92,13 @@ export async function ensureTables() {
     console.error('Không thể nới cột word_type lên VARCHAR(50):', e);
   }
 
-  // --- Migration 1 lần: bảng vocab schema cũ (cột `topic` text, chưa có `topic_id`) ---
-  // Phát hiện bằng cách kiểm tra information_schema; nếu đúng, drop + tạo lại vocab
-  // theo schema mới và dọn user_progress orphan. Đây là hành động HỦY DỮ LIỆU có chủ đích
-  // đã được xác nhận ở thiết kế — không migrate/backfill dữ liệu topic cũ.
-  const oldSchemaCols = await sql`
-    SELECT column_name FROM information_schema.columns
-    WHERE table_name = 'vocab' AND column_name = 'topic'
-  `;
-  if (oldSchemaCols.length > 0) {
-    console.warn(
-      'Phát hiện bảng vocab dùng schema cũ (cột topic text tự do). ' +
-      'Đang drop và tạo lại vocab theo schema mới (topic_id tham chiếu bảng topics). ' +
-      'Toàn bộ từ vựng cũ sẽ bị xóa; lịch sử học tập (user_progress) theo từ cũ sẽ bị dọn, chỉ giữ tên user.'
-    );
-    await sql`DROP TABLE vocab`;
-    await sql`
-      CREATE TABLE vocab (
-        id                  SERIAL PRIMARY KEY,
-        word_id             UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
-        english_word        VARCHAR(255) NOT NULL,
-        ipa                 TEXT DEFAULT '',
-        word_type           VARCHAR(50) DEFAULT '',
-        vietnamese_meaning  TEXT NOT NULL,
-        topic_id            UUID REFERENCES topics(topic_id),
-        image_url           TEXT DEFAULT '',
-        created_date        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `;
-    // Dọn các dòng user_progress có word_id (orphan vì vocab vừa bị tạo lại với UUID mới).
-    // Giữ lại dòng word_id IS NULL — đó là placeholder lưu danh sách tên user.
-    await sql`DELETE FROM user_progress WHERE word_id IS NOT NULL`;
-  }
+  // Lưu ý: migration 1 lần (drop + tạo lại vocab để đổi cột `topic` text -> `topic_id` UUID)
+  // đã HOÀN TẤT và bị loại bỏ khỏi code chạy thường trực. KHÔNG thêm lại logic
+  // DROP TABLE tự động ở đây — ensureTables() chạy trên mọi request và có thể bị gọi
+  // đồng thời từ nhiều request song song (ví dụ lúc `next build` prerender nhiều route),
+  // nên bất kỳ điều kiện DROP TABLE tự động nào đều là rủi ro mất dữ liệu thật trong production.
+  // Nếu cần đổi schema trong tương lai, hãy chạy migration qua 1 script riêng, chạy 1 lần,
+  // có xác nhận rõ ràng — không đặt trong đường dẫn code mà mọi request đều đi qua.
 
   await sql`
     CREATE TABLE IF NOT EXISTS user_progress (
@@ -141,17 +116,23 @@ export async function ensureTables() {
     ON user_progress (user_name, word_id)
     WHERE word_id IS NOT NULL
   `;
-  // Unique index (case-insensitive) trên english_word để hỗ trợ bulk upsert (ON CONFLICT) khi import CSV.
-  // Bọc try/catch riêng: nếu dữ liệu cũ đã có english_word trùng (khác hoa/thường),
+  // Xóa index cũ (chỉ theo english_word) nếu còn tồn tại từ phiên bản trước — giờ 1 từ có thể
+  // có nhiều bản ghi khác loại từ (ví dụ "forward" adj và "forward" adv là 2 từ riêng biệt).
+  await sql`DROP INDEX IF EXISTS idx_vocab_english_word_lower`;
+
+  // Unique index (case-insensitive) trên (english_word, word_type) để hỗ trợ bulk upsert (ON CONFLICT)
+  // khi import CSV. Khóa theo CẢ loại từ: cùng từ nhưng khác loại từ (ví dụ "good" adj và "good" n)
+  // được coi là 2 bản ghi riêng biệt, không ghi đè lẫn nhau.
+  // Bọc try/catch riêng: nếu dữ liệu cũ đã có (english_word, word_type) trùng hệt,
   // việc tạo index sẽ lỗi — không để lỗi này làm sập toàn bộ ensureTables().
   try {
     await sql`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_vocab_english_word_lower
-      ON vocab (LOWER(english_word))
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_vocab_word_type_lower
+      ON vocab (LOWER(english_word), LOWER(word_type))
     `;
   } catch (e) {
     console.error(
-      'Không thể tạo unique index idx_vocab_english_word_lower (có thể do dữ liệu trùng english_word). ' +
+      'Không thể tạo unique index idx_vocab_word_type_lower (có thể do dữ liệu trùng english_word + word_type). ' +
       'Import CSV sẽ dùng chế độ chậm hơn (SELECT + INSERT/UPDATE từng dòng) cho tới khi dữ liệu trùng được dọn.',
       e
     );
@@ -237,7 +218,7 @@ async function seedSampleVocabulary() {
 export async function hasVocabUpsertIndex(): Promise<boolean> {
   const rows = await sql`
     SELECT 1 FROM pg_indexes
-    WHERE tablename = 'vocab' AND indexname = 'idx_vocab_english_word_lower'
+    WHERE tablename = 'vocab' AND indexname = 'idx_vocab_word_type_lower'
   `;
   return rows.length > 0;
 }
