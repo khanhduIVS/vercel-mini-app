@@ -13,16 +13,17 @@ export interface DashboardViewProps {
   setWordCount: (count: number) => void;
   onLogout: () => void;
   onStartLearningSession: () => void;
-  onShowImportModal: () => void;
-  onShowWordsManagerModal: () => void;
   onRefreshDashboard: () => void;
 }
 
-/** View 2: thống kê học tập + cấu hình & bắt đầu buổi học + điều hướng tới các modal quản lý. */
+/**
+ * View 2: thống kê học tập + cấu hình & bắt đầu buổi học.
+ * Chức năng "Thêm từ mới" và "Quản lý từ vựng" đã di chuyển sang trang /admin.
+ */
 export function DashboardView({
   active, currentUser, stats, topics,
   selectedTopic, setSelectedTopic, wordCount, setWordCount,
-  onLogout, onStartLearningSession, onShowImportModal, onShowWordsManagerModal, onRefreshDashboard,
+  onLogout, onStartLearningSession, onRefreshDashboard,
 }: DashboardViewProps) {
   return (
     <section className={`view ${active ? 'active' : ''}`}>
@@ -91,9 +92,7 @@ export function DashboardView({
           🎯 HỌC NGAY
         </button>
 
-        <div className="mt-16" style={{ display: 'flex', gap: '10px' }}>
-          <button className="btn btn-secondary btn-block" onClick={onShowImportModal}>📥 Thêm từ mới</button>
-          <button className="btn btn-secondary btn-block" onClick={onShowWordsManagerModal}>📚 Quản lý từ vựng</button>
+        <div className="mt-16">
           <button className="btn btn-secondary btn-block" onClick={onRefreshDashboard}>🔄 Làm mới</button>
         </div>
 
