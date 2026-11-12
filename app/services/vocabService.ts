@@ -13,19 +13,20 @@ export interface VocabUpdateInput {
   ipa: string;
   wordType: string;
   vietnameseMeaning: string;
+  /** Tên chủ đề (text tự do) — server tự resolve/tạo topic nếu chưa tồn tại. */
   topic: string;
   imageUrl: string;
 }
 
-/** GET /api/vocab?search=&topic=&page=&pageSize= — danh sách từ có phân trang/lọc. */
+/** GET /api/vocab?search=&topicId=&page=&pageSize= — danh sách từ có phân trang/lọc. */
 export async function fetchVocabList(
   search: string,
-  topic: string,
+  topicId: string,
   page: number,
   pageSize: number
 ): Promise<VocabListResult> {
   const params = new URLSearchParams({
-    search, topic, page: String(page), pageSize: String(pageSize),
+    search, topicId, page: String(page), pageSize: String(pageSize),
   });
   const res = await fetch(`/api/vocab?${params}`);
   if (!res.ok) throw new Error('Không thể tải danh sách từ');
