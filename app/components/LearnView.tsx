@@ -52,7 +52,7 @@ export function LearnView({
         {currentWord && (
           <div className="mt-16">
             <div className="word-card">
-              {currentWord.topic && currentWord.topic !== 'Chung' && (
+              {currentWord.topic && (
                 <div className="word-topic">📂 {currentWord.topic}</div>
               )}
               {currentWord.imageUrl && (
