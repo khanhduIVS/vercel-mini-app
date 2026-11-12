@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import { fetchVocabList, updateVocab, deleteVocab } from '@/app/services/vocabService';
 import { searchUnsplashImages } from '@/app/services/unsplashService';
-import type { Vocab } from '@/lib/types';
+import type { Vocab, Topic } from '@/lib/types';
 import type { UiFeedback } from './useUiFeedback';
 
 const PAGE_SIZE = 20;
@@ -40,13 +40,14 @@ export interface UseWordsManagerResult {
   managerPage: number;
   managerSearchInput: string;
   setManagerSearchInput: (value: string) => void;
+  /** topicId đang lọc, hoặc '' nghĩa là tất cả chủ đề. */
   managerTopicFilter: string;
   managerStart: number;
   managerEnd: number;
   managerTotalPages: number;
   showWordsManagerModal: () => void;
   hideWordsManagerModal: () => void;
-  renderWordsManager: (search: string, topic: string, page: number) => Promise<void>;
+  renderWordsManager: (search: string, topicId: string, page: number) => Promise<void>;
   refreshCurrentPage: () => void;
   onManagerSearch: (e: React.KeyboardEvent) => void;
   onManagerTopicChange: (value: string) => void;
@@ -60,8 +61,13 @@ export interface UseWordsManagerResult {
 /**
  * Hook quản lý modal "Quản lý từ vựng": bảng danh sách có search/filter/phân trang,
  * xóa từ, và cập nhật ảnh tự động (từng từ hoặc hàng loạt theo lô 10).
+ * `topics` dùng để tra tên chủ đề hiển thị trong thông báo xác nhận (managerTopicFilter chỉ lưu topicId).
  */
-export function useWordsManager(ui: UiFeedback, loadTopics: () => Promise<void>): UseWordsManagerResult {
+export function useWordsManager(
+  ui: UiFeedback,
+  loadTopics: () => Promise<void>,
+  topics: Topic[]
+): UseWordsManagerResult {
   const [showWordsManager, setShowWordsManager] = useState(false);
   const [managerWords, setManagerWords] = useState<Vocab[]>([]);
   const [managerTotal, setManagerTotal] = useState(0);
@@ -70,10 +76,10 @@ export function useWordsManager(ui: UiFeedback, loadTopics: () => Promise<void>)
   const [managerSearchInput, setManagerSearchInput] = useState('');
   const [managerTopicFilter, setManagerTopicFilter] = useState('');
 
-  const renderWordsManager = useCallback(async (search: string, topic: string, page: number) => {
+  const renderWordsManager = useCallback(async (search: string, topicId: string, page: number) => {
     ui.setLoading(true);
     try {
-      const data = await fetchVocabList(search, topic, page, PAGE_SIZE);
+      const data = await fetchVocabList(search, topicId, page, PAGE_SIZE);
       setManagerWords(data.words);
       setManagerTotal(data.total);
     } catch {
@@ -180,16 +186,17 @@ export function useWordsManager(ui: UiFeedback, loadTopics: () => Promise<void>)
    * Gặp lỗi hết lượt gọi API (rate limit) -> dừng ngay và báo lỗi để thực hiện lại sau.
    */
   const bulkAutoFindImages = async () => {
-    const topic = managerTopicFilter;
-    const confirmMsg = topic
-      ? `Tự động tìm và cập nhật ảnh cho TẤT CẢ từ thuộc chủ đề "${topic}"?`
+    const topicId = managerTopicFilter;
+    const topicName = topicId ? (topics.find((t) => t.topicId === topicId)?.name || '') : '';
+    const confirmMsg = topicName
+      ? `Tự động tìm và cập nhật ảnh cho TẤT CẢ từ thuộc chủ đề "${topicName}"?`
       : 'Tự động tìm và cập nhật ảnh cho TẤT CẢ từ vựng (mọi chủ đề)?';
     if (!confirm(confirmMsg)) return;
 
     ui.setLoading(true);
     ui.setLoadingMessage('Đang tải danh sách từ...');
     try {
-      const data = await fetchVocabList('', topic, 1, 10000);
+      const data = await fetchVocabList('', topicId, 1, 10000);
       const words = data.words;
 
       if (words.length === 0) {
