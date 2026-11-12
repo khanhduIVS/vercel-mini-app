@@ -87,9 +87,12 @@ export default function Home() {
         currentIndex={learnSession.currentIndex}
         totalWords={learnSession.wordList.length}
         countdown={learnSession.countdown}
+        visitedIndices={learnSession.visitedIndices}
+        isLastWord={learnSession.isLastWord}
         onBackToDashboard={handleBackToDashboard}
         onPrevWord={learnSession.prevWord}
         onNextWord={learnSession.nextWord}
+        onGoToIndex={learnSession.goToIndex}
       />
 
       <LoadingOverlay loading={ui.loading} loadingMessage={ui.loadingMessage} />
