@@ -68,10 +68,11 @@ export async function ensureTables() {
   `;
 
   // Seed sample vocabulary if table is empty
-  const count = await sql`SELECT COUNT(*) AS cnt FROM vocab`;
-  if (Number(count[0].cnt) === 0) {
-    await seedSampleVocabulary();
-  }
+  // (Đã comment: không tự động seed lại dữ liệu mẫu khi bảng vocab bị xóa rỗng)
+  // const count = await sql`SELECT COUNT(*) AS cnt FROM vocab`;
+  // if (Number(count[0].cnt) === 0) {
+  //   await seedSampleVocabulary();
+  // }
 }
 
 async function seedSampleVocabulary() {
