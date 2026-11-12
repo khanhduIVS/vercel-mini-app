@@ -59,10 +59,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Thiếu từ tiếng Anh hoặc nghĩa' }, { status: 400 });
     }
 
-    // Check duplicate
-    const existing = await sql`SELECT word_id FROM vocab WHERE LOWER(english_word) = LOWER(${englishWord.trim()})`;
+    // Check duplicate: cùng từ + cùng loại từ mới coi là trùng (khác loại từ là từ riêng biệt hợp lệ)
+    const existing = await sql`
+      SELECT word_id FROM vocab
+      WHERE LOWER(english_word) = LOWER(${englishWord.trim()})
+        AND LOWER(word_type) = LOWER(${wordType?.trim() || ''})
+    `;
     if (existing.length > 0) {
-      return NextResponse.json({ error: 'Từ này đã tồn tại' }, { status: 409 });
+      return NextResponse.json({ error: 'Từ này (cùng loại từ) đã tồn tại' }, { status: 409 });
     }
 
     const topicName = (topic || '').trim();
