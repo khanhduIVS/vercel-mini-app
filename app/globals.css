@@ -267,9 +267,12 @@ label.field-label {
 .btn-sm { padding: 6px 12px; font-size: 0.85rem; }
 
 /* ---------- Popup z-index ---------- */
-#wordEditorOverlay { z-index: 1000; }
-#fetchImageOverlay { z-index: 1100; }
-#loadingOverlay { z-index: 1200; }
+/* Lưu ý: #wordEditorOverlay / #fetchImageOverlay không map tới id thật trong JSX,
+   các component dùng inline style z-index riêng (WordEditorModal, UnsplashSearchModal).
+   .loading-overlay dùng class thật để luôn hiển thị trên cùng mọi modal khác,
+   vì nó biểu thị trạng thái xử lý của hành động người dùng vừa bấm trong modal đó
+   (ví dụ: import CSV, lưu từ...). */
+.loading-overlay { z-index: 1300 !important; }
 
 /* Lưới ảnh Unsplash */
 .unsplash-thumb {
