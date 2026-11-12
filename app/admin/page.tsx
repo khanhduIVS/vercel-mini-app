@@ -27,7 +27,7 @@ export default function AdminPage() {
   const ui = useUiFeedback();
   const topics = useTopics();
   const importCsv = useImportCsv(ui);
-  const wordsManager = useWordsManager(ui, topics.loadTopics);
+  const wordsManager = useWordsManager(ui, topics.loadTopics, topics.topics);
   const wordEditor = useWordEditor(ui);
   const unsplashSearch = useUnsplashSearch(ui);
 
