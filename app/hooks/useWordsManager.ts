@@ -54,7 +54,6 @@ export interface UseWordsManagerResult {
   managerPrevPage: () => void;
   managerNextPage: () => void;
   confirmDeleteWord: (wordId: string) => Promise<void>;
-  autoFindImage: (word: Vocab) => Promise<void>;
   bulkAutoFindImages: () => Promise<void>;
 }
 
@@ -154,32 +153,6 @@ export function useWordsManager(
     }
   };
 
-  const autoFindImage = async (word: Vocab) => {
-    if (!word.englishWord.trim()) {
-      ui.showToast('Từ không có nội dung tiếng Anh', 'error');
-      return;
-    }
-    ui.setLoading(true);
-    ui.setLoadingMessage('Đang tự động tìm ảnh...');
-    try {
-      const result = await fetchAndApplyImage(word);
-      if (result === 'rate_limited') {
-        ui.showToast('Đã hết lượt gọi Unsplash API. Vui lòng thực hiện lại sau.', 'error', 4000);
-        return;
-      }
-      if (result !== 'success') {
-        ui.showToast(`Không tìm thấy ảnh cho từ "${word.englishWord}"`, 'error');
-        return;
-      }
-      ui.showToast(`Đã tự động cập nhật ảnh cho "${word.englishWord}"`, 'success');
-      refreshCurrentPage();
-    } catch {
-      ui.showToast('Lỗi khi tự động tìm ảnh', 'error');
-    } finally {
-      ui.setLoading(false);
-    }
-  };
-
   /**
    * Cập nhật ảnh cho nhiều từ cùng lúc, xử lý tuần tự theo từng lô (batch) 10 từ.
    * Không chọn chủ đề -> cập nhật tất cả từ. Có chọn chủ đề -> chỉ cập nhật từ thuộc chủ đề đó.
@@ -258,6 +231,6 @@ export function useWordsManager(
     managerStart, managerEnd, managerTotalPages,
     showWordsManagerModal, hideWordsManagerModal, renderWordsManager, refreshCurrentPage,
     onManagerSearch, onManagerTopicChange, managerPrevPage, managerNextPage,
-    confirmDeleteWord, autoFindImage, bulkAutoFindImages,
+    confirmDeleteWord, bulkAutoFindImages,
   };
 }
