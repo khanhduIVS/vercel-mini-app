@@ -1,16 +1,15 @@
 import { NextResponse } from 'next/server';
 import { sql, ensureTables } from '@/lib/db';
+import type { Topic } from '@/lib/types';
 
-/** GET /api/topics — all distinct topics from vocab. */
+/** GET /api/topics — danh sách chủ đề từ bảng topics (chuẩn hóa, không còn lấy distinct từ vocab). */
 export async function GET() {
   try {
     await ensureTables();
     const rows = await sql`
-      SELECT DISTINCT topic FROM vocab
-      WHERE topic IS NOT NULL AND topic != ''
-      ORDER BY topic
-    `;
-    return NextResponse.json(rows.map((r: any) => r.topic));
+      SELECT topic_id AS "topicId", name FROM topics ORDER BY name
+    ` as Topic[];
+    return NextResponse.json(rows);
   } catch {
     return NextResponse.json({ error: 'Không thể tải chủ đề' }, { status: 500 });
   }
