@@ -17,12 +17,13 @@ export function WordsManagerModal({ manager, topics, onHide, onEditWord }: Words
     managerSearchInput, setManagerSearchInput, managerTopicFilter,
     managerStart, managerEnd, managerTotalPages, managerPage,
     onManagerSearch, onManagerTopicChange, managerPrevPage, managerNextPage,
-    confirmDeleteWord, autoFindImage, bulkAutoFindImages,
+    confirmDeleteWord, bulkAutoFindImages,
   } = manager;
 
   return (
     <div className={`overlay ${showWordsManager ? 'active' : ''}`}>
       <div className="modal" style={{ maxWidth: '800px' }}>
+      <div className="modal-scroll">
         <div className="row-between">
           <h3 style={{ margin: 0 }}>📚 Quản lý từ vựng</h3>
           <button className="btn btn-secondary" onClick={onHide}>✕</button>
@@ -95,14 +96,6 @@ export function WordsManagerModal({ manager, topics, onHide, onEditWord }: Words
                         ✏️
                       </button>
                       <button
-                        className="btn btn-secondary btn-sm"
-                        style={{ marginLeft: '4px' }}
-                        title="Tự động tìm ảnh"
-                        onClick={() => autoFindImage(w)}
-                      >
-                        🖼️
-                      </button>
-                      <button
                         className="btn btn-danger btn-sm"
                         style={{ marginLeft: '4px' }}
                         onClick={() => confirmDeleteWord(w.wordId)}
@@ -140,6 +133,7 @@ export function WordsManagerModal({ manager, topics, onHide, onEditWord }: Words
             </button>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
