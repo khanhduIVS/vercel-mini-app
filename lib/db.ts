@@ -146,10 +146,25 @@ export async function ensureTables() {
   // }
 }
 
+/** Pattern UUID chuẩn (v1-v5), dùng để phát hiện khi ai đó vô tình đưa topic_id/word_id
+ * (dạng UUID) vào chỗ cần TÊN chủ đề — ví dụ copy nhầm cột topicId thay vì tên khi tạo CSV import. */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Lỗi ném ra khi phát hiện tên chủ đề thực chất là 1 UUID (rất có thể nhập sai dữ liệu). */
+export class InvalidTopicNameError extends Error {
+  constructor(public readonly invalidNames: string[]) {
+    super(`Tên chủ đề không hợp lệ (trông giống UUID, có thể đã nhập nhầm id thay vì tên): ${invalidNames.join(', ')}`);
+    this.name = 'InvalidTopicNameError';
+  }
+}
+
 /**
  * Resolve danh sách TÊN chủ đề thành topic_id, tự tạo (upsert) chủ đề mới nếu tên chưa tồn tại.
  * So khớp không phân biệt hoa/thường. Tên rỗng/chỉ khoảng trắng bị bỏ qua (không tạo topic rỗng).
  * Trả về Map tên gốc (chưa chuẩn hóa) -> topic_id, để caller tra cứu lại đúng tên đã truyền vào.
+ *
+ * Ném InvalidTopicNameError nếu phát hiện tên nào đó có dạng UUID — chặn việc vô tình tạo ra
+ * 1 "chủ đề" có tên là chuỗi UUID (ví dụ copy nhầm topicId thay vì tên lúc chuẩn bị file CSV).
  */
 export async function resolveTopicIds(names: string[]): Promise<Map<string, string>> {
   const distinctNames = Array.from(
@@ -157,6 +172,11 @@ export async function resolveTopicIds(names: string[]): Promise<Map<string, stri
   );
   const result = new Map<string, string>();
   if (distinctNames.length === 0) return result;
+
+  const invalidNames = distinctNames.filter((n) => UUID_PATTERN.test(n));
+  if (invalidNames.length > 0) {
+    throw new InvalidTopicNameError(invalidNames);
+  }
 
   // Upsert từng tên: tạo mới nếu chưa có (ON CONFLICT theo LOWER(name) bỏ qua nếu đã tồn tại).
   for (const name of distinctNames) {
