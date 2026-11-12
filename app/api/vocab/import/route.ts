@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { sql, sqlQuery, ensureTables, parseCsvLine, hasVocabUpsertIndex, resolveTopicIds } from '@/lib/db';
+import { sql, sqlQuery, ensureTables, parseCsvLine, hasVocabUpsertIndex, resolveTopicIds, InvalidTopicNameError } from '@/lib/db';
 import type { ImportResult } from '@/lib/types';
 
 interface ParsedRow {
@@ -199,6 +199,12 @@ export async function POST(request: Request) {
     const result: ImportResult = { imported, updated, unchanged, errors };
     return NextResponse.json(result);
   } catch (e) {
+    if (e instanceof InvalidTopicNameError) {
+      return NextResponse.json(
+        { error: `Cột chủ đề trong CSV chứa giá trị giống UUID (có thể nhập nhầm id thay vì tên): ${e.invalidNames.join(', ')}. Vui lòng sửa lại thành tên chủ đề (ví dụ "Màu sắc") và import lại.` },
+        { status: 400 }
+      );
+    }
     console.error('Import CSV lỗi:', e);
     return NextResponse.json({ error: 'Không thể import' }, { status: 500 });
   }
