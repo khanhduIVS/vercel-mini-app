@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { sql, sqlQuery, ensureTables, parseCsvLine, hasVocabUpsertIndex } from '@/lib/db';
+import { sql, sqlQuery, ensureTables, parseCsvLine, hasVocabUpsertIndex, resolveTopicIds } from '@/lib/db';
 import type { ImportResult } from '@/lib/types';
 
 interface ParsedRow {
@@ -7,8 +7,14 @@ interface ParsedRow {
   ipa: string;
   wordType: string;
   meaning: string;
-  topic: string;
+  /** Tên chủ đề thô từ CSV (chuỗi rỗng = không chỉ định). */
+  topicName: string;
   imageUrl: string;
+}
+
+interface ResolvedRow extends ParsedRow {
+  /** topic_id đã resolve từ topicName; null nếu topicName rỗng. */
+  topicId: string | null;
 }
 
 /** Số dòng xử lý mỗi batch khi dùng bulk upsert — giữ câu lệnh SQL ở kích thước hợp lý. */
@@ -28,14 +34,28 @@ function parseCsvRows(text: string): { rows: ParsedRow[]; errors: number } {
     const ipa = (parts[1] || '').trim();
     const wordType = (parts[2] || '').trim();
     const meaning = (parts[3] || '').trim();
-    const topic = parts.length > 4 ? (parts[4] || '').trim() : '';
+    const topicName = parts.length > 4 ? (parts[4] || '').trim() : '';
     const imageUrl = parts.length > 5 ? (parts[5] || '').trim() : '';
 
     if (!english || !meaning) { errors++; continue; }
-    rows.push({ english, ipa, wordType, meaning, topic, imageUrl });
+    rows.push({ english, ipa, wordType, meaning, topicName, imageUrl });
   }
 
   return { rows, errors };
+}
+
+/**
+ * Resolve tên chủ đề (text tự do trong CSV) thành topic_id cho toàn bộ các dòng,
+ * tự tạo chủ đề mới nếu tên chưa tồn tại. Chỉ 1 lần gọi resolveTopicIds cho mọi tên
+ * distinct xuất hiện trong file, tránh round-trip DB lặp lại cho mỗi dòng.
+ */
+async function resolveRowTopics(rows: ParsedRow[]): Promise<ResolvedRow[]> {
+  const names = rows.map((r) => r.topicName).filter((n) => n.length > 0);
+  const topicIds = await resolveTopicIds(names);
+  return rows.map((row) => ({
+    ...row,
+    topicId: row.topicName ? (topicIds.get(row.topicName) || null) : null,
+  }));
 }
 
 /**
@@ -44,48 +64,50 @@ function parseCsvRows(text: string): { rows: ParsedRow[]; errors: number } {
  * từ O(n) query xuống O(n / BULK_BATCH_SIZE), tránh timeout khi import file lớn (vài nghìn dòng).
  * `xmax = 0` là cách PostgreSQL phân biệt dòng vừa được INSERT mới (true) với dòng bị UPDATE (false)
  * trong cùng 1 câu lệnh ON CONFLICT.
+ * Lưu ý: topic_id rỗng (null) nghĩa là "không chỉ định" trong dòng CSV này — giữ nguyên
+ * topic_id cũ của bản ghi đã tồn tại (COALESCE), không ghi đè thành NULL.
  */
-async function bulkUpsertBatch(batch: ParsedRow[]): Promise<{ imported: number; updated: number }> {
+async function bulkUpsertBatch(batch: ResolvedRow[]): Promise<{ imported: number; updated: number }> {
   const valuesSql: string[] = [];
-  const params: string[] = [];
+  const params: (string | null)[] = [];
   let idx = 1;
 
   for (const row of batch) {
     valuesSql.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5})`);
-    params.push(row.english, row.ipa, row.wordType, row.meaning, row.topic, row.imageUrl);
+    params.push(row.english, row.ipa, row.wordType, row.meaning, row.topicId, row.imageUrl);
     idx += 6;
   }
 
   const query = `
-    INSERT INTO vocab (english_word, ipa, word_type, vietnamese_meaning, topic, image_url)
+    INSERT INTO vocab (english_word, ipa, word_type, vietnamese_meaning, topic_id, image_url)
     VALUES ${valuesSql.join(', ')}
     ON CONFLICT (LOWER(english_word)) DO UPDATE SET
       ipa = COALESCE(NULLIF(EXCLUDED.ipa, ''), vocab.ipa),
       word_type = COALESCE(NULLIF(EXCLUDED.word_type, ''), vocab.word_type),
       vietnamese_meaning = COALESCE(NULLIF(EXCLUDED.vietnamese_meaning, ''), vocab.vietnamese_meaning),
-      topic = COALESCE(NULLIF(EXCLUDED.topic, ''), vocab.topic),
+      topic_id = COALESCE(EXCLUDED.topic_id, vocab.topic_id),
       image_url = COALESCE(NULLIF(EXCLUDED.image_url, ''), vocab.image_url)
     RETURNING (xmax = 0) AS inserted
   `;
 
-  const rows = await sqlQuery<{ inserted: boolean }>(query, params);
+  const rows = await sqlQuery<{ inserted: boolean }>(query, params as (string | number)[]);
   const imported = rows.filter((r) => r.inserted).length;
   const updated = rows.length - imported;
   return { imported, updated };
 }
 
 /** Fallback chậm (SELECT + INSERT/UPDATE từng dòng) — dùng khi chưa có unique index hỗ trợ ON CONFLICT. */
-async function upsertRowSlow(row: ParsedRow): Promise<'imported' | 'updated' | 'unchanged'> {
-  const { english, ipa, wordType, meaning, topic, imageUrl } = row;
+async function upsertRowSlow(row: ResolvedRow): Promise<'imported' | 'updated' | 'unchanged'> {
+  const { english, ipa, wordType, meaning, topicId, imageUrl } = row;
   const existing = await sql`
-    SELECT word_id, ipa, word_type, vietnamese_meaning, topic, image_url
+    SELECT word_id, ipa, word_type, vietnamese_meaning, topic_id, image_url
     FROM vocab WHERE LOWER(english_word) = LOWER(${english})
   `;
 
   if (existing.length === 0) {
     await sql`
-      INSERT INTO vocab (english_word, ipa, word_type, vietnamese_meaning, topic, image_url)
-      VALUES (${english}, ${ipa}, ${wordType}, ${meaning}, ${topic}, ${imageUrl})
+      INSERT INTO vocab (english_word, ipa, word_type, vietnamese_meaning, topic_id, image_url)
+      VALUES (${english}, ${ipa}, ${wordType}, ${meaning}, ${topicId}, ${imageUrl})
     `;
     return 'imported';
   }
@@ -94,14 +116,14 @@ async function upsertRowSlow(row: ParsedRow): Promise<'imported' | 'updated' | '
   const newIpa = ipa || cur.ipa;
   const newType = wordType || cur.word_type;
   const newMeaning = meaning || cur.vietnamese_meaning;
-  const newTopic = topic || cur.topic;
+  const newTopicId = topicId || cur.topic_id;
   const newImageUrl = imageUrl || cur.image_url;
 
   const changed =
     newIpa !== cur.ipa ||
     newType !== cur.word_type ||
     newMeaning !== cur.vietnamese_meaning ||
-    newTopic !== cur.topic ||
+    newTopicId !== cur.topic_id ||
     newImageUrl !== cur.image_url;
 
   if (!changed) return 'unchanged';
@@ -109,13 +131,13 @@ async function upsertRowSlow(row: ParsedRow): Promise<'imported' | 'updated' | '
   await sql`
     UPDATE vocab
     SET ipa = ${newIpa}, word_type = ${newType}, vietnamese_meaning = ${newMeaning},
-        topic = ${newTopic}, image_url = ${newImageUrl}
+        topic_id = ${newTopicId}, image_url = ${newImageUrl}
     WHERE word_id = ${cur.word_id}
   `;
   return 'updated';
 }
 
-/** POST /api/vocab/import — bulk import / upsert from CSV text. */
+/** POST /api/vocab/import — bulk import / upsert from CSV text. Cột topic trong CSV là TÊN tự do. */
 export async function POST(request: Request) {
   try {
     await ensureTables();
@@ -125,7 +147,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Dữ liệu CSV trống' }, { status: 400 });
     }
 
-    const { rows, errors } = parseCsvRows(text);
+    const { rows: parsedRows, errors } = parseCsvRows(text);
+    const rows = await resolveRowTopics(parsedRows);
     let imported = 0, updated = 0, unchanged = 0;
 
     const canBulkUpsert = await hasVocabUpsertIndex();
