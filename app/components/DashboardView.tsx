@@ -1,14 +1,15 @@
 'use client';
 
-import type { UserStats } from '@/lib/types';
+import type { UserStats, Topic } from '@/lib/types';
 
 export interface DashboardViewProps {
   active: boolean;
   currentUser: string;
   stats: UserStats | null;
-  topics: string[];
+  topics: Topic[];
+  /** topicId đã chọn, hoặc 'all'. */
   selectedTopic: string;
-  setSelectedTopic: (topic: string) => void;
+  setSelectedTopic: (topicId: string) => void;
   wordCount: number;
   setWordCount: (count: number) => void;
   onLogout: () => void;
@@ -71,7 +72,7 @@ export function DashboardView({
           >
             <option value="all">✨ Tất cả chủ đề</option>
             {topics.map((t) => (
-              <option key={t} value={t}>{t}</option>
+              <option key={t.topicId} value={t.topicId}>{t.name}</option>
             ))}
           </select>
         </div>
