@@ -20,7 +20,8 @@ export function WordEditorModal({ editor, onSave, onDelete, onFetchImageFromUnsp
 
   return (
     <div className={`overlay ${showWordEditor ? 'active' : ''}`} style={{ zIndex: 1000 }}>
-      <div className="modal" style={{ maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto' }}>
+      <div className="modal" style={{ maxWidth: '480px' }}>
+      <div className="modal-scroll">
         <div className="row-between">
           <h3 style={{ margin: 0 }}>✏️ Chỉnh sửa từ</h3>
           <button className="btn btn-secondary" onClick={closeWordEditor}>✕</button>
@@ -113,6 +114,7 @@ export function WordEditorModal({ editor, onSave, onDelete, onFetchImageFromUnsp
           <button className="btn btn-primary" onClick={onSave}>Lưu thay đổi</button>
           <button className="btn btn-danger" onClick={onDelete}>🗑️ Xóa từ</button>
         </div>
+      </div>
       </div>
     </div>
   );
