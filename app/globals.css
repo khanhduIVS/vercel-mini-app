@@ -228,11 +228,18 @@ label.field-label {
 .overlay.active { display: flex; }
 
 /* ---------- Modal ---------- */
+/* .modal là khung ngoài: bo góc + overflow hidden để scrollbar của nội dung bên trong
+   (nếu có) không cắt mất phần bo góc. Phần cuộn thực tế + padding nằm ở .modal-scroll. */
 .modal {
-  background: #fff; border-radius: 18px; padding: 24px; width: 100%; max-width: 480px;
-  max-height: 90vh; overflow-y: auto;
+  background: #fff; border-radius: 18px; width: 100%; max-width: 480px;
+  max-height: 90vh; overflow: hidden;
+  display: flex; flex-direction: column;
 }
-.modal textarea {
+.modal-scroll {
+  padding: 24px;
+  overflow-y: auto;
+}
+.modal-scroll textarea {
   width: 100%; min-height: 150px; padding: 12px; border: 1px solid #cbd5e0;
   border-radius: 10px; font-family: monospace; font-size: 14px; resize: vertical;
 }
