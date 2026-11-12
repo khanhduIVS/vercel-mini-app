@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { sql, ensureTables, resolveTopicIds } from '@/lib/db';
+import { sql, ensureTables, resolveTopicIds, InvalidTopicNameError } from '@/lib/db';
 import type { Vocab } from '@/lib/types';
 
 /** GET /api/vocab/:id — get a single word by word_id. JOIN topics để trả tên chủ đề hiển thị. */
@@ -75,7 +75,13 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     ` as Vocab[];
 
     return NextResponse.json(updated[0]);
-  } catch {
+  } catch (e) {
+    if (e instanceof InvalidTopicNameError) {
+      return NextResponse.json(
+        { error: `Tên chủ đề không hợp lệ (trông giống UUID): ${e.invalidNames.join(', ')}. Vui lòng nhập tên chủ đề dạng chữ.` },
+        { status: 400 }
+      );
+    }
     return NextResponse.json({ error: 'Không thể cập nhật từ vựng' }, { status: 500 });
   }
 }
