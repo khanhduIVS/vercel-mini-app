@@ -1,9 +1,18 @@
+/** Danh mục chủ đề từ vựng (bảng topics riêng, chuẩn hóa — không còn text tự do trên vocab). */
+export interface Topic {
+  topicId: string;
+  name: string;
+}
+
 export interface Vocab {
   wordId: string;
   englishWord: string;
   ipa: string;
   wordType: string;
   vietnameseMeaning: string;
+  /** FK tới topics.topicId; null nghĩa là chưa phân loại chủ đề. */
+  topicId: string | null;
+  /** Tên chủ đề hiển thị (lấy từ JOIN topics), rỗng nếu topicId null. */
   topic: string;
   imageUrl: string;
 }
