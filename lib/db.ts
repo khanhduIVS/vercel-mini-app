@@ -66,6 +66,21 @@ export async function ensureTables() {
     ON user_progress (user_name, word_id)
     WHERE word_id IS NOT NULL
   `;
+  // Unique index (case-insensitive) trên english_word để hỗ trợ bulk upsert (ON CONFLICT) khi import CSV.
+  // Bọc try/catch riêng: nếu dữ liệu cũ đã có english_word trùng (khác hoa/thường),
+  // việc tạo index sẽ lỗi — không để lỗi này làm sập toàn bộ ensureTables().
+  try {
+    await sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_vocab_english_word_lower
+      ON vocab (LOWER(english_word))
+    `;
+  } catch (e) {
+    console.error(
+      'Không thể tạo unique index idx_vocab_english_word_lower (có thể do dữ liệu trùng english_word). ' +
+      'Import CSV sẽ dùng chế độ chậm hơn (SELECT + INSERT/UPDATE từng dòng) cho tới khi dữ liệu trùng được dọn.',
+      e
+    );
+  }
 
   // Seed sample vocabulary if table is empty
   // (Đã comment: không tự động seed lại dữ liệu mẫu khi bảng vocab bị xóa rỗng)
@@ -105,6 +120,15 @@ async function seedSampleVocabulary() {
       VALUES (${englishWord}, ${ipa}, ${wordType}, ${meaning}, ${topic}, '')
     `;
   }
+}
+
+/** Kiểm tra unique index hỗ trợ bulk upsert (ON CONFLICT) cho vocab đã được tạo thành công chưa. */
+export async function hasVocabUpsertIndex(): Promise<boolean> {
+  const rows = await sql`
+    SELECT 1 FROM pg_indexes
+    WHERE tablename = 'vocab' AND indexname = 'idx_vocab_english_word_lower'
+  `;
+  return rows.length > 0;
 }
 
 /** Parse a single CSV line into an array of fields (handles quoted commas). */
