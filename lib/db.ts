@@ -16,16 +16,24 @@ export async function sqlQuery<T = any>(query: string, params: (string | number)
   return sql.query(query, params) as Promise<T[]>;
 }
 
-/** Column-select helper — returns rows with camelCase keys matching the frontend. */
+/**
+ * Column-select helper — returns rows with camelCase keys matching the frontend.
+ * JOIN với bảng topics để lấy tên chủ đề hiển thị (topic) bên cạnh topic_id.
+ * Dùng alias `v` cho vocab — mọi câu SQL dùng VOCAB_COLUMNS phải FROM vocab v (có thể kèm JOIN topics t).
+ */
 export const VOCAB_COLUMNS = `
-  word_id       AS "wordId",
-  english_word  AS "englishWord",
-  ipa           AS "ipa",
-  word_type     AS "wordType",
-  vietnamese_meaning AS "vietnameseMeaning",
-  topic         AS "topic",
-  image_url     AS "imageUrl"
+  v.word_id       AS "wordId",
+  v.english_word  AS "englishWord",
+  v.ipa           AS "ipa",
+  v.word_type     AS "wordType",
+  v.vietnamese_meaning AS "vietnameseMeaning",
+  v.topic_id      AS "topicId",
+  t.name          AS "topic",
+  v.image_url     AS "imageUrl"
 `;
+
+/** Clause JOIN dùng chung sau "FROM vocab v" để lấy tên topic (LEFT JOIN vì topic_id có thể NULL). */
+export const VOCAB_TOPIC_JOIN = `LEFT JOIN topics t ON v.topic_id = t.topic_id`;
 
 /** Box levels for spaced repetition: hours to wait before next review. */
 export const BOX_LEVELS: Record<number, number> = {
@@ -35,8 +43,33 @@ export const BOX_LEVELS: Record<number, number> = {
 };
 export const MAX_BOX_LEVEL = 3;
 
-/** Ensures both tables exist, then seeds sample vocabulary if empty. */
+/**
+ * Ensures all tables exist with the current schema.
+ * Bao gồm migration 1 lần: nếu vocab còn schema cũ (cột `topic` text tự do,
+ * chưa có `topic_id`), drop và tạo lại vocab theo schema mới, đồng thời dọn
+ * các dòng user_progress đã trở thành orphan (word_id không còn khớp từ nào).
+ */
 export async function ensureTables() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS topics (
+      id           SERIAL PRIMARY KEY,
+      topic_id     UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+      name         VARCHAR(100) NOT NULL,
+      created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+  try {
+    await sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_topics_name_lower
+      ON topics (LOWER(name))
+    `;
+  } catch (e) {
+    console.error(
+      'Không thể tạo unique index idx_topics_name_lower (có thể do dữ liệu trùng tên chủ đề).',
+      e
+    );
+  }
+
   await sql`
     CREATE TABLE IF NOT EXISTS vocab (
       id                  SERIAL PRIMARY KEY,
@@ -45,11 +78,45 @@ export async function ensureTables() {
       ipa                 TEXT DEFAULT '',
       word_type           VARCHAR(20) DEFAULT '',
       vietnamese_meaning  TEXT NOT NULL,
-      topic               VARCHAR(100) DEFAULT '',
+      topic_id            UUID REFERENCES topics(topic_id),
       image_url           TEXT DEFAULT '',
       created_date        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `;
+
+  // --- Migration 1 lần: bảng vocab schema cũ (cột `topic` text, chưa có `topic_id`) ---
+  // Phát hiện bằng cách kiểm tra information_schema; nếu đúng, drop + tạo lại vocab
+  // theo schema mới và dọn user_progress orphan. Đây là hành động HỦY DỮ LIỆU có chủ đích
+  // đã được xác nhận ở thiết kế — không migrate/backfill dữ liệu topic cũ.
+  const oldSchemaCols = await sql`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_name = 'vocab' AND column_name = 'topic'
+  `;
+  if (oldSchemaCols.length > 0) {
+    console.warn(
+      'Phát hiện bảng vocab dùng schema cũ (cột topic text tự do). ' +
+      'Đang drop và tạo lại vocab theo schema mới (topic_id tham chiếu bảng topics). ' +
+      'Toàn bộ từ vựng cũ sẽ bị xóa; lịch sử học tập (user_progress) theo từ cũ sẽ bị dọn, chỉ giữ tên user.'
+    );
+    await sql`DROP TABLE vocab`;
+    await sql`
+      CREATE TABLE vocab (
+        id                  SERIAL PRIMARY KEY,
+        word_id             UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+        english_word        VARCHAR(255) NOT NULL,
+        ipa                 TEXT DEFAULT '',
+        word_type           VARCHAR(20) DEFAULT '',
+        vietnamese_meaning  TEXT NOT NULL,
+        topic_id            UUID REFERENCES topics(topic_id),
+        image_url           TEXT DEFAULT '',
+        created_date        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    // Dọn các dòng user_progress có word_id (orphan vì vocab vừa bị tạo lại với UUID mới).
+    // Giữ lại dòng word_id IS NULL — đó là placeholder lưu danh sách tên user.
+    await sql`DELETE FROM user_progress WHERE word_id IS NOT NULL`;
+  }
+
   await sql`
     CREATE TABLE IF NOT EXISTS user_progress (
       id           SERIAL PRIMARY KEY,
@@ -90,6 +157,38 @@ export async function ensureTables() {
   // }
 }
 
+/**
+ * Resolve danh sách TÊN chủ đề thành topic_id, tự tạo (upsert) chủ đề mới nếu tên chưa tồn tại.
+ * So khớp không phân biệt hoa/thường. Tên rỗng/chỉ khoảng trắng bị bỏ qua (không tạo topic rỗng).
+ * Trả về Map tên gốc (chưa chuẩn hóa) -> topic_id, để caller tra cứu lại đúng tên đã truyền vào.
+ */
+export async function resolveTopicIds(names: string[]): Promise<Map<string, string>> {
+  const distinctNames = Array.from(
+    new Set(names.map((n) => n.trim()).filter((n) => n.length > 0))
+  );
+  const result = new Map<string, string>();
+  if (distinctNames.length === 0) return result;
+
+  // Upsert từng tên: tạo mới nếu chưa có (ON CONFLICT theo LOWER(name) bỏ qua nếu đã tồn tại).
+  for (const name of distinctNames) {
+    await sql`
+      INSERT INTO topics (name) VALUES (${name})
+      ON CONFLICT (LOWER(name)) DO NOTHING
+    `;
+  }
+
+  const lowerNames = distinctNames.map((n) => n.toLowerCase());
+  const lowerToOriginal = new Map(distinctNames.map((n) => [n.toLowerCase(), n]));
+  const rows = await sql`
+    SELECT topic_id, name FROM topics WHERE LOWER(name) = ANY(${lowerNames})
+  `;
+  for (const row of rows) {
+    const original = lowerToOriginal.get(String(row.name).toLowerCase());
+    if (original) result.set(original, row.topic_id);
+  }
+  return result;
+}
+
 async function seedSampleVocabulary() {
   const samples: [string, string, string, string, string][] = [
     ['apple', '/ˈæp.əl/', 'n', 'quả táo', 'Trái cây'],
@@ -114,10 +213,14 @@ async function seedSampleVocabulary() {
     ['father', '/ˈfɑː.ðər/', 'n', 'bố', 'Gia đình & Con người'],
   ];
 
+  const names = samples.map((s) => s[4]);
+  const topicIds = await resolveTopicIds(names);
+
   for (const [englishWord, ipa, wordType, meaning, topic] of samples) {
+    const topicId = topicIds.get(topic) || null;
     await sql`
-      INSERT INTO vocab (english_word, ipa, word_type, vietnamese_meaning, topic, image_url)
-      VALUES (${englishWord}, ${ipa}, ${wordType}, ${meaning}, ${topic}, '')
+      INSERT INTO vocab (english_word, ipa, word_type, vietnamese_meaning, topic_id, image_url)
+      VALUES (${englishWord}, ${ipa}, ${wordType}, ${meaning}, ${topicId}, '')
     `;
   }
 }
