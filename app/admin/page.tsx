@@ -6,13 +6,11 @@ import { useTopics } from '@/app/hooks/useTopics';
 import { useImportCsv } from '@/app/hooks/useImportCsv';
 import { useWordsManager } from '@/app/hooks/useWordsManager';
 import { useWordEditor } from '@/app/hooks/useWordEditor';
-import { useUnsplashSearch } from '@/app/hooks/useUnsplashSearch';
 
 import { AdminLoginForm } from '@/app/components/AdminLoginForm';
 import { ImportCsvModal } from '@/app/components/ImportCsvModal';
 import { WordsManagerModal } from '@/app/components/WordsManagerModal';
 import { WordEditorModal } from '@/app/components/WordEditorModal';
-import { UnsplashSearchModal } from '@/app/components/UnsplashSearchModal';
 import { LoadingOverlay } from '@/app/components/LoadingOverlay';
 import { Toast } from '@/app/components/Toast';
 
@@ -29,7 +27,6 @@ export default function AdminPage() {
   const importCsv = useImportCsv(ui);
   const wordsManager = useWordsManager(ui, topics.loadTopics, topics.topics);
   const wordEditor = useWordEditor(ui);
-  const unsplashSearch = useUnsplashSearch(ui);
 
   const handleLoginFailed = () => {
     ui.showToast('Sai tên đăng nhập hoặc mật khẩu', 'error');
@@ -39,14 +36,6 @@ export default function AdminPage() {
   const handleHideWordsManagerModal = () => {
     wordsManager.hideWordsManagerModal();
     wordEditor.closeWordEditor();
-  };
-
-  const handleFetchImageFromUnsplash = () => {
-    unsplashSearch.openFetchImageModal(wordEditor.editEnglish);
-  };
-
-  const handleUseSelectedImage = () => {
-    unsplashSearch.useSelectedImage((url) => wordEditor.setEditImageUrl(url));
   };
 
   if (!auth.isLoggedIn) {
@@ -95,14 +84,9 @@ export default function AdminPage() {
 
       <WordEditorModal
         editor={wordEditor}
+        topics={topics.topics}
         onSave={() => wordEditor.saveWord(wordsManager.refreshCurrentPage)}
         onDelete={() => wordEditor.deleteCurrentWord(wordsManager.refreshCurrentPage)}
-        onFetchImageFromUnsplash={handleFetchImageFromUnsplash}
-      />
-
-      <UnsplashSearchModal
-        search={unsplashSearch}
-        onUseSelectedImage={handleUseSelectedImage}
       />
 
       <Toast toast={ui.toast} />
