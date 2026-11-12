@@ -18,6 +18,7 @@ export function UnsplashSearchModal({ search, onUseSelectedImage }: UnsplashSear
   return (
     <div className={`overlay ${showFetchImage ? 'active' : ''}`} style={{ zIndex: 1100 }}>
       <div className="modal" style={{ maxWidth: '500px' }}>
+      <div className="modal-scroll">
         <div className="row-between">
           <h3 style={{ margin: 0 }}>⚡ Tìm ảnh từ Unsplash</h3>
           <button className="btn btn-secondary" onClick={hideFetchImageModal}>✕</button>
@@ -91,6 +92,7 @@ export function UnsplashSearchModal({ search, onUseSelectedImage }: UnsplashSear
         {fetchImageStatus && (
           <div className="mt-16 text-muted" style={{ textAlign: 'center' }}>{fetchImageStatus}</div>
         )}
+      </div>
       </div>
     </div>
   );
