@@ -3,18 +3,17 @@
 import { useState } from 'react';
 import type { Vocab } from '@/lib/types';
 import { speak } from '@/app/hooks/useLearnSession';
+import { WORD_TYPE_MAP, parseWordTypeCodes, filterKnownWordTypeCodes } from '@/app/lib/wordTypes';
 
-const WORD_TYPE_MAP: Record<string, string> = {
-  'n': 'Danh từ', 'v': 'Động từ', 'adj': 'Tính từ', 'adv': 'Trạng từ',
-  'pron': 'Đại từ', 'prep': 'Giới từ', 'conj': 'Liên từ', 'interj': 'Thán từ',
-  'det': 'Từ hạn định', 'art': 'Mạo từ', 'num': 'Số từ',
-  'aux': 'Trợ động từ', 'modal': 'Động từ khuyết thiếu',
-  'phr': 'Cụm động từ', 'abbr': 'Từ viết tắt',
-};
-
+/**
+ * Hiển thị loại từ: wordType có thể là 1 mã đơn ("adj") hoặc nhiều mã ghép bởi dấu phẩy ("n, v").
+ * Hiện mã gốc (nguyên văn như đang lưu) kèm mô tả tiếng Việt cho từng mã hợp lệ, nối bởi ", ".
+ * Mã lạ không khớp danh sách chuẩn (ví dụ "to", lỗi chính tả) không có mô tả, bị bỏ qua phần mô tả.
+ */
 function getWordTypeHtml(wordType: string) {
   if (!wordType) return null;
-  const desc = WORD_TYPE_MAP[wordType] || '';
+  const codes = filterKnownWordTypeCodes(parseWordTypeCodes(wordType));
+  const desc = codes.map((c) => WORD_TYPE_MAP[c]).filter(Boolean).join(', ');
   return (
     <>
       <span className="word-type">{wordType}</span>
