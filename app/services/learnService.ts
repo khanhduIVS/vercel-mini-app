@@ -6,13 +6,13 @@ export interface LearnSessionResult {
   total: number;
 }
 
-/** GET /api/learn?user=&count=&topic= — lấy danh sách từ ngẫu nhiên cho 1 buổi học. */
+/** GET /api/learn?user=&count=&topicId= — lấy danh sách từ ngẫu nhiên cho 1 buổi học. */
 export async function fetchLearnSession(
   userName: string,
   count: number,
-  topic: string
+  topicId: string
 ): Promise<LearnSessionResult> {
-  const params = new URLSearchParams({ user: userName, count: String(count), topic });
+  const params = new URLSearchParams({ user: userName, count: String(count), topicId });
   const res = await fetch(`/api/learn?${params}`);
   if (!res.ok) throw new Error('Không thể bắt đầu học');
   return res.json();
