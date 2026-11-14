@@ -11,9 +11,11 @@ const BULK_IMAGE_BATCH_SIZE = 10;
 
 type FetchImageResult = 'success' | 'not_found' | 'rate_limited' | 'error';
 
-/** Gọi Unsplash lấy ảnh đầu tiên cho 1 từ và cập nhật imageUrl của từ đó. */
-async function fetchAndApplyImage(word: Vocab): Promise<FetchImageResult> {
+/** Gọi Unsplash lấy ảnh đầu tiên cho 1 từ và cập nhật imageUrl của từ đó.
+ *  Bỏ qua nếu từ đã có ảnh — trả về 'skipped'. */
+async function fetchAndApplyImage(word: Vocab): Promise<FetchImageResult | 'skipped'> {
   if (!word.englishWord.trim()) return 'not_found';
+  if (word.imageUrl?.trim()) return 'skipped';   // đã có ảnh → bỏ qua
   try {
     const result = await searchUnsplashImages(word.englishWord.trim(), 1, 1);
     if (result.status === 'rate_limited') return 'rate_limited';
@@ -179,6 +181,7 @@ export function useWordsManager(
 
       let successCount = 0;
       let failCount = 0;
+      let skipCount = 0;
       let wasRateLimited = false;
       let processedCount = 0;
 
@@ -195,21 +198,23 @@ export function useWordsManager(
             wasRateLimited = true;
             break outer;
           }
-          if (result === 'success') successCount++; else failCount++;
+          if (result === 'skipped') skipCount++;
+          else if (result === 'success') successCount++;
+          else failCount++;
         }
       }
 
       if (wasRateLimited) {
         ui.showToast(
           `⚠️ Đã hết lượt gọi Unsplash API sau khi xử lý ${processedCount - 1}/${words.length} từ ` +
-          `(✅ ${successCount} thành công, ❌ ${failCount} thất bại).\n` +
+          `(✅ ${successCount} thành công, ❌ ${failCount} thất bại, ⏭️ ${skipCount} đã có ảnh).\n` +
           `Vui lòng thực hiện lại sau để cập nhật các từ còn lại.`,
           'error',
           7000
         );
       } else {
         ui.showToast(
-          `Hoàn tất cập nhật ảnh: ✅ ${successCount} thành công, ❌ ${failCount} thất bại`,
+          `Hoàn tất: ✅ ${successCount} thành công, ❌ ${failCount} thất bại, ⏭️ ${skipCount} đã có ảnh`,
           failCount > 0 ? 'info' : 'success',
           5000
         );
