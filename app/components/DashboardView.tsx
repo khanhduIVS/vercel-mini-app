@@ -79,14 +79,16 @@ export function DashboardView({
 
         <div className="mt-16">
           <label className="field-label" htmlFor="wordCount">📊 Số từ muốn học</label>
-          <input
+          <select
             id="wordCount"
-            type="number"
             className="input-field"
             value={wordCount}
-            min={1}
-            onChange={(e) => setWordCount(Math.max(1, parseInt(e.target.value) || 5))}
-          />
+            onChange={(e) => setWordCount(Number(e.target.value))}
+          >
+            {[5, 10, 15, 20, 25, 30, 35, 40, 45, 50].map((n) => (
+              <option key={n} value={n}>{n} từ</option>
+            ))}
+          </select>
         </div>
 
         <button className="btn btn-primary btn-block mt-16" onClick={onStartLearningSession}>
