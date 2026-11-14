@@ -13,9 +13,11 @@ export interface UseUnsplashSearchResult {
   fetchImageSelectedUrl: string;
   fetchImageStatus: string;
   fetchImageHasResults: boolean;
+  currentPage: number;
   openFetchImageModal: (initialWord: string) => void;
   hideFetchImageModal: () => void;
   doFetchImage: () => Promise<void>;
+  doFetchMoreImages: () => Promise<void>;
   selectImage: (img: UnsplashImage) => void;
   /** Gọi khi người dùng xác nhận dùng ảnh đã chọn; page.tsx dùng để set vào word editor. */
   useSelectedImage: (onSelected: (url: string) => void) => void;
@@ -30,6 +32,7 @@ export function useUnsplashSearch(ui: UiFeedback): UseUnsplashSearchResult {
   const [fetchImageSelectedUrl, setFetchImageSelectedUrl] = useState('');
   const [fetchImageStatus, setFetchImageStatus] = useState('');
   const [fetchImageHasResults, setFetchImageHasResults] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const openFetchImageModal = (initialWord: string) => {
     if (!initialWord.trim()) {
@@ -41,11 +44,13 @@ export function useUnsplashSearch(ui: UiFeedback): UseUnsplashSearchResult {
     setFetchImageSelectedUrl('');
     setFetchImageStatus('');
     setFetchImageHasResults(false);
+    setCurrentPage(1);
     setShowFetchImage(true);
   };
 
   const hideFetchImageModal = () => setShowFetchImage(false);
 
+  /** Tìm trang đầu (reset kết quả cũ). */
   const doFetchImage = async () => {
     const word = fetchImageWord.trim();
     if (!word) { ui.showToast('Vui lòng nhập từ tiếng Anh', 'error'); return; }
@@ -53,11 +58,13 @@ export function useUnsplashSearch(ui: UiFeedback): UseUnsplashSearchResult {
     ui.setLoading(true);
     ui.setLoadingMessage('Đang tìm ảnh...');
     try {
-      const result = await searchUnsplashImages(word);
+      const result = await searchUnsplashImages(word, 1);
+      setCurrentPage(1);
       if (result.status === 'success') {
         setFetchImageResults(result.images);
         setFetchImageHasResults(true);
-        setFetchImageStatus(`Tìm thấy ${result.images.length} ảnh. Nhấn để chọn ảnh phù hợp.`);
+        setFetchImageSelectedUrl('');
+        setFetchImageStatus(`Trang 1 — ${result.images.length} ảnh. Nhấn để chọn ảnh phù hợp.`);
       } else if (result.status === 'rate_limited') {
         setFetchImageResults([]);
         setFetchImageHasResults(false);
@@ -69,6 +76,35 @@ export function useUnsplashSearch(ui: UiFeedback): UseUnsplashSearchResult {
       }
     } catch {
       setFetchImageStatus('❌ Lỗi khi tìm ảnh');
+    } finally {
+      ui.setLoading(false);
+    }
+  };
+
+  /** Tìm thêm 20 ảnh tiếp theo (nối vào kết quả hiện tại). */
+  const doFetchMoreImages = async () => {
+    const word = fetchImageWord.trim();
+    if (!word) return;
+
+    const nextPage = currentPage + 1;
+    ui.setLoading(true);
+    ui.setLoadingMessage(`Đang tải trang ${nextPage}...`);
+    try {
+      const result = await searchUnsplashImages(word, nextPage);
+      if (result.status === 'success') {
+        setFetchImageResults((prev) => {
+          const merged = [...prev, ...result.images];
+          setFetchImageStatus(`Trang ${nextPage} — đã tải ${merged.length} ảnh.`);
+          return merged;
+        });
+        setCurrentPage(nextPage);
+      } else if (result.status === 'rate_limited') {
+        setFetchImageStatus('❌ Đã hết lượt gọi Unsplash API. Vui lòng thử lại sau.');
+      } else {
+        setFetchImageStatus('❌ Không còn ảnh nào. Thử từ khác!');
+      }
+    } catch {
+      setFetchImageStatus('❌ Lỗi khi tải thêm ảnh');
     } finally {
       ui.setLoading(false);
     }
@@ -97,6 +133,8 @@ export function useUnsplashSearch(ui: UiFeedback): UseUnsplashSearchResult {
   return {
     showFetchImage, fetchImageWord, setFetchImageWord,
     fetchImageResults, fetchImageSelectedUrl, fetchImageStatus, fetchImageHasResults,
-    openFetchImageModal, hideFetchImageModal, doFetchImage, selectImage, useSelectedImage, copyImageLink,
+    currentPage,
+    openFetchImageModal, hideFetchImageModal, doFetchImage, doFetchMoreImages,
+    selectImage, useSelectedImage, copyImageLink,
   };
 }

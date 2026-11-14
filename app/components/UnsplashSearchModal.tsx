@@ -12,7 +12,7 @@ export function UnsplashSearchModal({ search, onUseSelectedImage }: UnsplashSear
   const {
     showFetchImage, fetchImageWord, setFetchImageWord,
     fetchImageResults, fetchImageSelectedUrl, fetchImageStatus, fetchImageHasResults,
-    hideFetchImageModal, doFetchImage, selectImage, copyImageLink,
+    hideFetchImageModal, doFetchImage, doFetchMoreImages, selectImage, copyImageLink,
   } = search;
 
   return (
@@ -60,6 +60,17 @@ export function UnsplashSearchModal({ search, onUseSelectedImage }: UnsplashSear
                   onClick={() => selectImage(img)}
                 />
               ))}
+            </div>
+
+            {/* Nút tìm thêm 20 ảnh tiếp */}
+            <div style={{ marginTop: '10px', textAlign: 'center' }}>
+              <button
+                className="btn btn-secondary"
+                style={{ fontSize: '0.875rem', padding: '8px 20px' }}
+                onClick={doFetchMoreImages}
+              >
+                🔍 Tìm tiếp 20 ảnh
+              </button>
             </div>
             {fetchImageSelectedUrl && (
               <div style={{ marginTop: '16px' }}>

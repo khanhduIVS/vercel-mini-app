@@ -105,6 +105,25 @@ export function WordEditorModal({ editor, topics, onSave, onDelete, onFetchImage
           <button className="btn btn-secondary btn-block" onClick={onFetchImageFromUnsplash}>
             ⚡ {editImageUrl ? 'Đổi ảnh từ Unsplash' : 'Tìm ảnh từ Unsplash'}
           </button>
+          {editImageUrl && (
+            <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'center' }}>
+              <img
+                src={editImageUrl}
+                alt="Ảnh minh họa"
+                style={{
+                  width: 'auto',
+                  maxWidth: '100%',
+                  maxHeight: '200px',
+                  borderRadius: '10px',
+                  border: '1px solid #e2e8f0',
+                  objectFit: 'contain',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  display: 'block',
+                }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            </div>
+          )}
         </div>
 
         <div className="modal-actions mt-16">
