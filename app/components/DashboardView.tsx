@@ -25,6 +25,8 @@ export function DashboardView({
   onLogout, onStartLearningSession, onRefreshDashboard,
 }: DashboardViewProps) {
   const pct = stats?.progressPercentage ?? 0;
+  const selectedTopicObj = topics.find((t) => t.topicId === selectedTopic);
+  const topicWordCount = selectedTopicObj?.wordCount ?? null;
 
   return (
     <section className={`view ${active ? 'active' : ''}`}>
@@ -94,7 +96,14 @@ export function DashboardView({
         {/* 2 select riêng dòng */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '12px' }}>
           <div className="dash-select-wrap">
-            <label htmlFor="topicSelect">📂 Chủ đề</label>
+            <label htmlFor="topicSelect">
+              📂 Chủ đề
+              {selectedTopic !== 'all' && topicWordCount !== null && (
+                <span style={{ fontWeight: 400, color: '#a0aec0', marginLeft: '6px' }}>
+                  (có {topicWordCount.toLocaleString('en-US')} từ)
+                </span>
+              )}
+            </label>
             <select
               id="topicSelect"
               value={selectedTopic}

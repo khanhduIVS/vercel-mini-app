@@ -8,12 +8,19 @@ import type { Topic } from '@/lib/types';
 // dù dữ liệu thật trong DB đã thay đổi. Đánh dấu route luôn render động để tránh cache sai dữ liệu.
 export const dynamic = 'force-dynamic';
 
-/** GET /api/topics — danh sách chủ đề từ bảng topics (chuẩn hóa, không còn lấy distinct từ vocab). */
+/** GET /api/topics — danh sách chủ đề kèm số từ thuộc mỗi chủ đề. */
 export async function GET() {
   try {
     await ensureTables();
     const rows = await sql`
-      SELECT topic_id AS "topicId", name FROM topics ORDER BY name
+      SELECT
+        t.topic_id  AS "topicId",
+        t.name      AS "name",
+        COUNT(v.word_id)::int AS "wordCount"
+      FROM topics t
+      LEFT JOIN vocab v ON v.topic_id = t.topic_id
+      GROUP BY t.topic_id, t.name
+      ORDER BY t.name
     ` as Topic[];
     return NextResponse.json(rows);
   } catch {

@@ -2,6 +2,8 @@
 export interface Topic {
   topicId: string;
   name: string;
+  /** Số từ thuộc chủ đề này (JOIN COUNT từ bảng vocab). */
+  wordCount: number;
 }
 
 export interface Vocab {
