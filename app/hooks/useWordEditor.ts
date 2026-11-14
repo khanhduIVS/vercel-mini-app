@@ -10,6 +10,8 @@ export interface UseWordEditorResult {
   editEnglish: string;
   editIpa: string;
   setEditIpa: (value: string) => void;
+  ipaLoading: boolean;
+  fetchIpa: () => Promise<void>;
   editWordType: string;
   setEditWordType: (value: string) => void;
   editMeaning: string;
@@ -37,6 +39,7 @@ export function useWordEditor(ui: UiFeedback): UseWordEditorResult {
   const [editTopic, setEditTopic] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
   const [clearImage, setClearImage] = useState(false);
+  const [ipaLoading, setIpaLoading] = useState(false);
 
   const openWordEditor = async (wordId: string) => {
     ui.setLoading(true);
@@ -70,6 +73,36 @@ export function useWordEditor(ui: UiFeedback): UseWordEditorResult {
     setEditTopic('');
     setEditImageUrl('');
     setClearImage(false);
+  };
+
+  /** Gọi Free Dictionary API để lấy phiên âm (IPA) cho từ hiện tại. */
+  const fetchIpa = async () => {
+    if (!editEnglish.trim()) return;
+    setIpaLoading(true);
+    try {
+      const res = await fetch(
+        `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(editEnglish.trim())}`
+      );
+      if (!res.ok) {
+        ui.showToast('Không tìm thấy phiên âm cho từ này', 'info');
+        return;
+      }
+      const data = await res.json();
+      // Lấy phonetic đầu tiên có text (ưu tiên phonetics[], fallback về phonetic field)
+      const phonetics: { text?: string }[] = data?.[0]?.phonetics || [];
+      const found = phonetics.find((p: { text?: string }) => p.text?.trim());
+      const ipa = found?.text?.trim() || data?.[0]?.phonetic?.trim() || '';
+      if (ipa) {
+        setEditIpa(ipa);
+        ui.showToast(`Đã cập nhật phiên âm: ${ipa}`, 'success');
+      } else {
+        ui.showToast('Không tìm thấy phiên âm cho từ này', 'info');
+      }
+    } catch {
+      ui.showToast('Lỗi khi lấy phiên âm', 'error');
+    } finally {
+      setIpaLoading(false);
+    }
   };
 
   /** `onSaved` dùng để page.tsx refresh lại bảng quản lý từ sau khi lưu. */
@@ -116,7 +149,8 @@ export function useWordEditor(ui: UiFeedback): UseWordEditorResult {
 
   return {
     showWordEditor, editWordId, editEnglish,
-    editIpa, setEditIpa, editWordType, setEditWordType,
+    editIpa, setEditIpa, ipaLoading, fetchIpa,
+    editWordType, setEditWordType,
     editMeaning, setEditMeaning, editTopic, setEditTopic,
     editImageUrl, setEditImageUrl,
     clearImage, setClearImage,

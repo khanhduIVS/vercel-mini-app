@@ -20,7 +20,8 @@ export interface WordEditorModalProps {
 export function WordEditorModal({ editor, topics, onSave, onDelete, onFetchImageFromUnsplash }: WordEditorModalProps) {
   const {
     showWordEditor, editEnglish,
-    editIpa, setEditIpa, editWordType, setEditWordType,
+    editIpa, setEditIpa, ipaLoading, fetchIpa,
+    editWordType, setEditWordType,
     editMeaning, setEditMeaning, editTopic, setEditTopic,
     editImageUrl, setEditImageUrl,
     clearImage, setClearImage,
@@ -53,7 +54,21 @@ export function WordEditorModal({ editor, topics, onSave, onDelete, onFetchImage
           <input className="input-field" type="text" value={editEnglish} readOnly />
         </div>
         <div className="mt-16">
-          <label className="field-label">Phiên âm</label>
+          <div className="row-between" style={{ marginBottom: '8px' }}>
+            <label className="field-label" style={{ margin: 0 }}>Phiên âm</label>
+            <button
+              type="button"
+              onClick={fetchIpa}
+              disabled={ipaLoading}
+              style={{
+                background: 'none', border: 'none', cursor: ipaLoading ? 'not-allowed' : 'pointer',
+                color: 'var(--primary-start)', fontSize: '0.8rem', fontWeight: 600,
+                padding: 0, opacity: ipaLoading ? 0.5 : 1, textDecoration: 'underline',
+              }}
+            >
+              {ipaLoading ? '⏳ Đang tìm...' : '🔄 Tự động lấy'}
+            </button>
+          </div>
           <input
             className="input-field"
             type="text"
