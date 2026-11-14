@@ -22,6 +22,8 @@ body {
   background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
   min-height: 100vh;
   color: #1a202c;
+  /* Tắt bounce scroll trên iOS khi dùng full-screen views */
+  overscroll-behavior: none;
 }
 
 /* Khi đang ở view học, khoá scroll body (LearnView dùng position: fixed toàn màn hình) */
@@ -32,6 +34,65 @@ body.learn-active { overflow: hidden; }
   max-width: 720px;
   margin: 0 auto;
   padding: 20px;
+}
+
+/* Full-screen view: dùng cho UserSelection, Dashboard, Learn */
+.view-fullscreen {
+  display: none;
+  position: fixed;
+  inset: 0;
+  flex-direction: column;
+  background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
+  /* Safe area cho iPhone notch / home bar */
+  padding:
+    env(safe-area-inset-top, 0px)
+    env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px)
+    env(safe-area-inset-left, 0px);
+  overflow: hidden;
+}
+.view-fullscreen.active {
+  display: flex;
+  animation: fadeIn 0.25s ease;
+}
+
+/* Card full-screen: không bo góc, không shadow nặng, flex dọc */
+.fullscreen-card {
+  background: #fff;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  /* Bo góc nhẹ trên tablet/desktop nơi có padding */
+  border-radius: 0;
+}
+@media (min-width: 600px) {
+  .view-fullscreen {
+    padding: 16px;
+  }
+  .fullscreen-card {
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+  }
+}
+
+/* Vùng cuộn được (giữa header và footer) */
+.fullscreen-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px 20px 0;
+  min-height: 0;
+}
+
+/* Footer cố định — luôn thấy, có safe-area bottom */
+.fullscreen-footer {
+  flex-shrink: 0;
+  padding: 12px 20px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 12px));
+  border-top: 1px solid #f0f0f0;
+  background: #fff;
 }
 
 .view { display: none; }
@@ -75,6 +136,7 @@ label.field-label {
   border: 2px solid #e2e8f0;
   border-radius: 12px;
   padding: 13px 16px;
+  /* 16px tránh iOS auto-zoom khi focus */
   font-size: 16px;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -125,7 +187,11 @@ label.field-label {
   cursor: pointer;
   font-weight: 600;
   border-radius: 50px;
+  /* Touch target tối thiểu 44px (Apple HIG / Material) */
+  min-height: 44px;
   transition: transform 0.2s, box-shadow 0.2s, background 0.2s, color 0.2s;
+  /* Tắt highlight xanh trên Android khi tap */
+  -webkit-tap-highlight-color: transparent;
 }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-block { width: 100%; }
@@ -140,6 +206,8 @@ label.field-label {
   transform: translateY(-2px);
   box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
 }
+/* Active state cho mobile (không có hover) */
+.btn-primary:not(:disabled):active { transform: scale(0.97); }
 
 .btn-secondary {
   background: #fff;
@@ -148,8 +216,14 @@ label.field-label {
   padding: 11px 24px;
 }
 .btn-secondary:not(:disabled):hover { background: var(--primary-start); color: #fff; }
+.btn-secondary:not(:disabled):active { transform: scale(0.97); }
 
-.btn-danger { background: var(--error); color: #fff; padding: 14px 30px; }
+.btn-danger {
+  background: var(--error);
+  color: #fff;
+  padding: 14px 30px;
+}
+.btn-danger:not(:disabled):active { transform: scale(0.97); }
 
 /* ---------- Dashboard redesign ---------- */
 
@@ -270,12 +344,14 @@ label.field-label {
   border: 2px solid #e2e8f0;
   border-radius: 10px;
   padding: 8px 10px;
-  font-size: 0.9rem;
+  /* 16px tránh iOS auto-zoom */
+  font-size: 16px;
   background: #fff;
   color: #2d3748;
   cursor: pointer;
   transition: border-color 0.2s;
   appearance: auto;
+  min-height: 44px;
 }
 .dash-select-wrap select:focus {
   border-color: var(--primary-start);
@@ -483,7 +559,8 @@ label.field-label {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  padding: 10px 16px 14px;
+  padding: 10px 16px;
+  padding-bottom: max(14px, env(safe-area-inset-bottom, 14px));
   flex-shrink: 0;
   border-top: 1px solid #f0f0f0;
 }
@@ -501,6 +578,33 @@ label.field-label {
     width: min(120px, 22dvh);
     height: min(120px, 22dvh);
   }
+}
+
+/* Landscape: ảnh + nội dung chia 2 cột */
+@media (orientation: landscape) and (max-height: 500px) {
+  .learn-body {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 8px 20px;
+  }
+  .learn-image-frame {
+    width: min(140px, 35dvh);
+    height: min(140px, 35dvh);
+    flex-shrink: 0;
+  }
+  .learn-content-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+  }
+  .learn-word-en { font-size: clamp(1.4rem, 5dvh, 2rem); }
+  .learn-word-vi { font-size: clamp(1rem, 3.5dvh, 1.4rem); }
+  .learn-topic { display: none; }
 }
 
 /* ---------- Thanh số từ (dùng chung cho learn-nav) ---------- */
@@ -530,6 +634,19 @@ label.field-label {
   background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
   border-color: transparent;
   color: #fff;
+}
+.question-nav-dots {
+  background: transparent;
+  border-color: transparent;
+  color: #a0aec0;
+  font-size: 1rem;
+  letter-spacing: -1px;
+  width: 28px;
+}
+.question-nav-dots:hover {
+  background: #edf2f7;
+  border-color: #cbd5e0;
+  color: #4a5568;
 }
 
 

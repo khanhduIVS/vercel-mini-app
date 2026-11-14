@@ -48,6 +48,38 @@ export function LearnView({
   const [imageErrorWordId, setImageErrorWordId] = useState<string | null>(null);
   const hasImage = !!currentWord?.imageUrl && currentWord.wordId !== imageErrorWordId;
 
+  // ---- Thanh số từ với phân trang kiểu ... ----
+  function buildNavItems(total: number, current: number): (number | '...')[] {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i);
+
+    const first = 0, last = total - 1;
+    const items: (number | '...')[] = [];
+
+    // Vùng xung quanh current: current-1, current, current+1
+    const around = new Set([first, last, current - 1, current, current + 1].filter(i => i >= 0 && i < total));
+
+    let prev = -1;
+    for (const i of Array.from(around).sort((a, b) => a - b)) {
+      if (prev !== -1 && i - prev > 1) items.push('...');
+      items.push(i);
+      prev = i;
+    }
+    return items;
+  }
+
+  const navItems = buildNavItems(totalWords, currentIndex);
+
+  // Khi bấm '...': nhảy 5 bước theo hướng gần nhất
+  function handleDots(itemIndex: number) {
+    const items = navItems;
+    const left  = items[itemIndex - 1];
+    const right = items[itemIndex + 1];
+    if (typeof left === 'number' && typeof right === 'number') {
+      const target = Math.round((left + right) / 2);
+      onGoToIndex(Math.min(Math.max(target, 0), totalWords - 1));
+    }
+  }
+
   return (
     <section className={`view learn-view ${active ? 'active' : ''}`}>
       <div className="learn-card">
@@ -61,23 +93,35 @@ export function LearnView({
           </button>
         </div>
 
-        {/* Thanh số từ */}
+        {/* Thanh số từ — căng giữa, tối đa 7 nút + ... */}
         {totalWords > 0 && (
-          <div className="learn-nav">
-            {Array.from({ length: totalWords }, (_, idx) => (
-              <button
-                key={idx}
-                type="button"
-                className={[
-                  'question-nav-item',
-                  idx === currentIndex ? 'current' : visitedIndices.has(idx) ? 'visited' : '',
-                ].filter(Boolean).join(' ')}
-                onClick={() => onGoToIndex(idx)}
-                title={`Từ số ${idx + 1}`}
-              >
-                {idx + 1}
-              </button>
-            ))}
+          <div className="learn-nav" style={{ justifyContent: 'center' }}>
+            {navItems.map((item, idx) =>
+              item === '...' ? (
+                <button
+                  key={`dots-${idx}`}
+                  type="button"
+                  className="question-nav-item question-nav-dots"
+                  onClick={() => handleDots(idx)}
+                  title="Nhảy tới"
+                >
+                  ···
+                </button>
+              ) : (
+                <button
+                  key={item}
+                  type="button"
+                  className={[
+                    'question-nav-item',
+                    item === currentIndex ? 'current' : visitedIndices.has(item) ? 'visited' : '',
+                  ].filter(Boolean).join(' ')}
+                  onClick={() => onGoToIndex(item)}
+                  title={`Từ số ${item + 1}`}
+                >
+                  {item + 1}
+                </button>
+              )
+            )}
           </div>
         )}
 
