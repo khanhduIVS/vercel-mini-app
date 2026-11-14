@@ -46,7 +46,10 @@ export default function AdminPage() {
   };
 
   const handleUseSelectedImage = () => {
-    unsplashSearch.useSelectedImage((url) => wordEditor.setEditImageUrl(url));
+    unsplashSearch.useSelectedImage((url) => {
+      wordEditor.setEditImageUrl(url);
+      wordEditor.setClearImage(false);  // reset xóa ảnh nếu trước đó đã đánh dấu
+    });
   };
 
   if (!auth.isLoggedIn) {

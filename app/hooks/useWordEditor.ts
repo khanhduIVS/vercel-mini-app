@@ -18,6 +18,8 @@ export interface UseWordEditorResult {
   setEditTopic: (value: string) => void;
   editImageUrl: string;
   setEditImageUrl: (value: string) => void;
+  clearImage: boolean;
+  setClearImage: (value: boolean) => void;
   openWordEditor: (wordId: string) => Promise<void>;
   closeWordEditor: () => void;
   saveWord: (onSaved: () => void) => Promise<void>;
@@ -34,6 +36,7 @@ export function useWordEditor(ui: UiFeedback): UseWordEditorResult {
   const [editMeaning, setEditMeaning] = useState('');
   const [editTopic, setEditTopic] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
+  const [clearImage, setClearImage] = useState(false);
 
   const openWordEditor = async (wordId: string) => {
     ui.setLoading(true);
@@ -48,6 +51,7 @@ export function useWordEditor(ui: UiFeedback): UseWordEditorResult {
       setEditMeaning(word.vietnameseMeaning);
       setEditTopic(word.topic || '');
       setEditImageUrl(word.imageUrl || '');
+      setClearImage(false);
       setShowWordEditor(true);
     } catch {
       ui.showToast('Không thể tải thông tin từ', 'error');
@@ -65,6 +69,7 @@ export function useWordEditor(ui: UiFeedback): UseWordEditorResult {
     setEditMeaning('');
     setEditTopic('');
     setEditImageUrl('');
+    setClearImage(false);
   };
 
   /** `onSaved` dùng để page.tsx refresh lại bảng quản lý từ sau khi lưu. */
@@ -79,6 +84,7 @@ export function useWordEditor(ui: UiFeedback): UseWordEditorResult {
         vietnameseMeaning: editMeaning,
         topic: editTopic,
         imageUrl: editImageUrl,
+        clearImage,
       });
       ui.showToast('Cập nhật thành công', 'success');
       closeWordEditor();
@@ -113,6 +119,7 @@ export function useWordEditor(ui: UiFeedback): UseWordEditorResult {
     editIpa, setEditIpa, editWordType, setEditWordType,
     editMeaning, setEditMeaning, editTopic, setEditTopic,
     editImageUrl, setEditImageUrl,
+    clearImage, setClearImage,
     openWordEditor, closeWordEditor, saveWord, deleteCurrentWord,
   };
 }

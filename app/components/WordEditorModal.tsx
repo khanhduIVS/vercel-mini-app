@@ -22,7 +22,8 @@ export function WordEditorModal({ editor, topics, onSave, onDelete, onFetchImage
     showWordEditor, editEnglish,
     editIpa, setEditIpa, editWordType, setEditWordType,
     editMeaning, setEditMeaning, editTopic, setEditTopic,
-    editImageUrl,
+    editImageUrl, setEditImageUrl,
+    clearImage, setClearImage,
     closeWordEditor,
   } = editor;
 
@@ -103,9 +104,10 @@ export function WordEditorModal({ editor, topics, onSave, onDelete, onFetchImage
         <div className="mt-16">
           <label className="field-label">Hình ảnh</label>
           <button className="btn btn-secondary btn-block" onClick={onFetchImageFromUnsplash}>
-            ⚡ {editImageUrl ? 'Đổi ảnh từ Unsplash' : 'Tìm ảnh từ Unsplash'}
+            ⚡ {editImageUrl && !clearImage ? 'Đổi ảnh từ Unsplash' : 'Tìm ảnh từ Unsplash'}
           </button>
-          {editImageUrl && (
+          {/* Preview ảnh — ẩn khi đã đánh dấu xóa */}
+          {editImageUrl && !clearImage && (
             <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'center' }}>
               <img
                 src={editImageUrl}
@@ -122,6 +124,30 @@ export function WordEditorModal({ editor, topics, onSave, onDelete, onFetchImage
                 }}
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
+              <div style={{ position: 'absolute' }} />
+            </div>
+          )}
+          {/* Nút xóa ảnh — chỉ hiện khi đang có ảnh và chưa đánh dấu xóa */}
+          {editImageUrl && !clearImage && (
+            <button
+              className="btn btn-danger btn-block"
+              style={{ marginTop: '8px', fontSize: '0.85rem', padding: '8px' }}
+              onClick={() => { setClearImage(true); setEditImageUrl(''); }}
+            >
+              🗑️ Xóa ảnh
+            </button>
+          )}
+          {/* Thông báo khi đã đánh dấu xóa ảnh */}
+          {clearImage && (
+            <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="text-muted" style={{ fontSize: '0.85rem' }}>⚠️ Ảnh sẽ bị xóa khi lưu</span>
+              <button
+                className="btn btn-secondary"
+                style={{ fontSize: '0.8rem', padding: '4px 12px' }}
+                onClick={() => setClearImage(false)}
+              >
+                Hủy xóa
+              </button>
             </div>
           )}
         </div>

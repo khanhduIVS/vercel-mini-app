@@ -16,6 +16,11 @@ export interface VocabUpdateInput {
   /** Tên chủ đề (text tự do) — server tự resolve/tạo topic nếu chưa tồn tại. */
   topic: string;
   imageUrl: string;
+  /**
+   * true  → xóa ảnh hiện tại (set image_url = '').
+   * false → giữ nguyên ảnh cũ nếu imageUrl rỗng; ghi đè nếu imageUrl có giá trị.
+   */
+  clearImage?: boolean;
 }
 
 /** GET /api/vocab?search=&topicId=&page=&pageSize= — danh sách từ có phân trang/lọc. */

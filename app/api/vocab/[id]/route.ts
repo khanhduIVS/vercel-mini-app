@@ -34,7 +34,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {
     await ensureTables();
-    const { ipa, wordType, vietnameseMeaning, topic, imageUrl } = await request.json();
+    const { ipa, wordType, vietnameseMeaning, topic, imageUrl, clearImage } = await request.json();
 
     const topicName = (topic || '').trim();
     let topicId: string | null = null;
@@ -43,13 +43,23 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       topicId = topicIds.get(topicName) || null;
     }
 
+    const newImageUrl = (imageUrl || '').trim();
+
+    // Logic ưu tiên:
+    //   clearImage=true  → xóa ảnh (ghi '' vào DB)
+    //   imageUrl có giá trị → ghi imageUrl mới
+    //   imageUrl rỗng       → giữ nguyên ảnh cũ (không ghi đè)
     const rows = await sql`
       UPDATE vocab
       SET ipa = ${ipa?.trim() || ''},
           word_type = ${wordType?.trim() || ''},
           vietnamese_meaning = ${vietnameseMeaning?.trim() || ''},
           topic_id = ${topicId},
-          image_url = ${imageUrl?.trim() || ''}
+          image_url = CASE
+            WHEN ${clearImage === true} THEN ''
+            WHEN ${newImageUrl} != ''   THEN ${newImageUrl}
+            ELSE image_url
+          END
       WHERE word_id = ${params.id}
       RETURNING word_id AS "wordId"
     `;

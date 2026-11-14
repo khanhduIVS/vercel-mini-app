@@ -92,12 +92,10 @@ export function useUnsplashSearch(ui: UiFeedback): UseUnsplashSearchResult {
     try {
       const result = await searchUnsplashImages(word, nextPage);
       if (result.status === 'success') {
-        setFetchImageResults((prev) => {
-          const merged = [...prev, ...result.images];
-          setFetchImageStatus(`Trang ${nextPage} — đã tải ${merged.length} ảnh.`);
-          return merged;
-        });
+        setFetchImageResults(result.images);
         setCurrentPage(nextPage);
+        setFetchImageSelectedUrl('');
+        setFetchImageStatus(`Trang ${nextPage} — ${result.images.length} ảnh. Nhấn để chọn ảnh phù hợp.`);
       } else if (result.status === 'rate_limited') {
         setFetchImageStatus('❌ Đã hết lượt gọi Unsplash API. Vui lòng thử lại sau.');
       } else {
