@@ -43,13 +43,17 @@ export default function Home() {
   // Bắt đầu buổi học: lấy danh sách từ rồi chuyển view sang 'learn'
   const handleStartLearningSession = async () => {
     const ok = await learnSession.startLearningSession(userFlow.currentUser, dashboard.wordCount, dashboard.selectedTopic);
-    if (ok) userFlow.setCurrentView('learn');
+    if (ok) {
+      userFlow.setCurrentView('learn');
+      document.body.classList.add('learn-active');
+    }
   };
 
   // Quay lại dashboard: dừng countdown + hủy phát âm, tải lại thống kê
   const handleBackToDashboard = () => {
     learnSession.stopCountdown();
     if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
+    document.body.classList.remove('learn-active');
     userFlow.setCurrentView('dashboard');
     dashboard.loadDashboard(userFlow.currentUser);
   };
