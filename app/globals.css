@@ -151,28 +151,165 @@ label.field-label {
 
 .btn-danger { background: var(--error); color: #fff; padding: 14px 30px; }
 
-/* ---------- Stats grid ---------- */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
-  margin-top: 24px;
-}
-.stat-box { border-radius: 14px; padding: 16px; text-align: center; }
-.stat-box .num { font-size: 1.8rem; font-weight: 800; }
-.stat-box .lbl { font-size: 0.8rem; color: #718096; margin-top: 2px; }
-.bg-blue { background: #ebf4ff; } .bg-blue .num { color: #3182ce; }
-.bg-green { background: #f0fff4; } .bg-green .num { color: #38a169; }
-.bg-yellow { background: #fffff0; } .bg-yellow .num { color: #d69e2e; }
-.bg-purple { background: #faf5ff; } .bg-purple .num { color: #805ad5; }
+/* ---------- Dashboard redesign ---------- */
 
-.progress-bar { height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden; margin-top: 10px; }
-.progress-fill {
+.dash-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.dash-username {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin: 0;
+}
+
+/* Progress bar lớn */
+.dash-progress-wrap {
+  margin-bottom: 14px;
+}
+.dash-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #718096;
+  margin-bottom: 6px;
+}
+.dash-progress-label strong {
+  color: #2d3748;
+  font-size: 0.95rem;
+}
+.dash-progress-bar {
+  height: 14px;
+  background: #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.dash-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #805ad5, #d53f8c);
-  border-radius: 5px;
-  width: 0;
+  background: linear-gradient(90deg, var(--primary-start), var(--primary-end));
+  border-radius: 8px;
   transition: width 0.5s ease;
+}
+
+/* 4 stat nhỏ nằm ngang */
+.dash-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.dash-stat {
+  background: #f7fafc;
+  border-radius: 12px;
+  padding: 10px 6px;
+  text-align: center;
+}
+.dash-stat .num {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #2d3748;
+  line-height: 1.1;
+}
+.dash-stat .lbl {
+  font-size: 0.68rem;
+  color: #718096;
+  margin-top: 2px;
+}
+
+/* Box distribution 1 dòng */
+.dash-boxes {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 12px;
+  background: #f7fafc;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  font-size: 0.8rem;
+  color: #4a5568;
+}
+.dash-box-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.dash-box-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dash-box-dot.b1 { background: #fc8181; }
+.dash-box-dot.b2 { background: #f6ad55; }
+.dash-box-dot.b3 { background: #68d391; }
+.dash-box-sep {
+  color: #cbd5e0;
+}
+
+/* 2 select cùng hàng */
+.dash-selects {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.dash-select-wrap label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #718096;
+  margin-bottom: 4px;
+}
+.dash-select-wrap select {
+  width: 100%;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  background: #fff;
+  color: #2d3748;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  appearance: auto;
+}
+.dash-select-wrap select:focus {
+  border-color: var(--primary-start);
+  outline: none;
+}
+
+/* Footer: nút học + refresh */
+.dash-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dash-refresh-btn {
+  background: #f7fafc;
+  border: 2px solid #e2e8f0;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.2s, border-color 0.2s;
+}
+.dash-refresh-btn:hover {
+  background: #ebf4ff;
+  border-color: var(--primary-start);
+}
+
+@media (max-width: 380px) {
+  .dash-stats { grid-template-columns: repeat(2, 1fr); }
+  .dash-stat .num { font-size: 1.1rem; }
 }
 
 /* ---------- LearnView: full-viewport, không scroll ---------- */

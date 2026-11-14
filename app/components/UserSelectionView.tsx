@@ -61,6 +61,7 @@ export function UserSelectionView({
           ▶ Bắt đầu học
         </button>
 
+        {/* stats-grid tạm ẩn
         <div className="stats-grid">
           <div className="stat-box bg-green">
             <div className="num">{users.length}</div>
@@ -71,6 +72,7 @@ export function UserSelectionView({
             <div className="lbl">Từ vựng mẫu</div>
           </div>
         </div>
+        */}
       </div>
     </section>
   );

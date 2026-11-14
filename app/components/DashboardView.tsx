@@ -2,12 +2,14 @@
 
 import type { UserStats, Topic } from '@/lib/types';
 
+/** Format số có dấu phẩy ngăn cách hàng nghìn: 3498 → 3,498 */
+const fmt = (n: number) => n.toLocaleString('en-US');
+
 export interface DashboardViewProps {
   active: boolean;
   currentUser: string;
   stats: UserStats | null;
   topics: Topic[];
-  /** topicId đã chọn, hoặc 'all'. */
   selectedTopic: string;
   setSelectedTopic: (topicId: string) => void;
   wordCount: number;
@@ -17,106 +19,123 @@ export interface DashboardViewProps {
   onRefreshDashboard: () => void;
 }
 
-/**
- * View 2: thống kê học tập + cấu hình & bắt đầu buổi học.
- * Chức năng "Thêm từ mới" và "Quản lý từ vựng" đã di chuyển sang trang /admin.
- */
 export function DashboardView({
   active, currentUser, stats, topics,
   selectedTopic, setSelectedTopic, wordCount, setWordCount,
   onLogout, onStartLearningSession, onRefreshDashboard,
 }: DashboardViewProps) {
+  const pct = stats?.progressPercentage ?? 0;
+
   return (
     <section className={`view ${active ? 'active' : ''}`}>
       <div className="card">
-        <div className="row-between">
-          <h2 className="app-title" style={{ textAlign: 'left', margin: 0 }}>
-            Xin chào, {currentUser}!
-          </h2>
-          <button className="btn btn-secondary" onClick={onLogout}>Đổi người</button>
+
+        {/* Header */}
+        <div className="dash-header">
+          <h2 className="dash-username">📚 Xin chào, {currentUser}!</h2>
+          <button
+            className="btn btn-secondary"
+            style={{ padding: '7px 14px', fontSize: '0.85rem' }}
+            onClick={onLogout}
+          >
+            Đổi người
+          </button>
         </div>
 
-        <div className="stats-grid">
-          <div className="stat-box bg-blue">
-            <div className="num">{stats?.totalLearned ?? 0}</div>
-            <div className="lbl">Từ đã học</div>
+        {/* Progress bar */}
+        <div className="dash-progress-wrap">
+          <div className="dash-progress-label">
+            <span>Tiến độ học</span>
+            <strong>{pct}% · {fmt(stats?.totalLearned ?? 0)}/{fmt(stats?.totalAvailable ?? 0)} từ</strong>
           </div>
-          <div className="stat-box bg-yellow">
-            <div className="num">{stats?.dueForReview ?? 0}</div>
+          <div className="dash-progress-bar">
+            <div className="dash-progress-fill" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+
+        {/* 4 stat */}
+        <div className="dash-stats">
+          <div className="dash-stat">
+            <div className="num">{fmt(stats?.totalLearned ?? 0)}</div>
+            <div className="lbl">Đã học</div>
+          </div>
+          <div className="dash-stat">
+            <div className="num">{fmt(stats?.dueForReview ?? 0)}</div>
             <div className="lbl">Cần ôn</div>
           </div>
-          <div className="stat-box bg-green">
+          <div className="dash-stat">
             <div className="num">{stats?.accuracy ?? 0}%</div>
             <div className="lbl">Tỷ lệ đúng</div>
           </div>
-          <div className="stat-box bg-purple">
-            <div className="num">{stats?.progressPercentage ?? 0}%</div>
-            <div className="lbl">Tiến độ</div>
+          <div className="dash-stat">
+            <div className="num">{fmt(stats?.totalAvailable ?? 0)}</div>
+            <div className="lbl">Tổng kho</div>
           </div>
         </div>
 
-        <div className="progress-bar">
-          <div
-            className="progress-fill"
-            style={{ width: `${stats?.progressPercentage ?? 0}%` }}
-          />
+        {/* Box distribution */}
+        <div className="dash-boxes">
+          <div className="dash-box-item">
+            <span className="dash-box-dot b1" />
+            <span>Box 1 · <strong>{fmt(stats?.box1Count ?? 0)}</strong></span>
+          </div>
+          <span className="dash-box-sep">|</span>
+          <div className="dash-box-item">
+            <span className="dash-box-dot b2" />
+            <span>Box 2 · <strong>{fmt(stats?.box2Count ?? 0)}</strong></span>
+          </div>
+          <span className="dash-box-sep">|</span>
+          <div className="dash-box-item">
+            <span className="dash-box-dot b3" />
+            <span>Box 3 · <strong>{fmt(stats?.box3Count ?? 0)}</strong></span>
+          </div>
         </div>
 
-        <div className="mt-24">
-          <label className="field-label" htmlFor="topicSelect">📂 Chủ đề (để trống = tất cả)</label>
-          <select
-            id="topicSelect"
-            className="input-field"
-            value={selectedTopic}
-            onChange={(e) => setSelectedTopic(e.target.value)}
+        {/* 2 select riêng dòng */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '12px' }}>
+          <div className="dash-select-wrap">
+            <label htmlFor="topicSelect">📂 Chủ đề</label>
+            <select
+              id="topicSelect"
+              value={selectedTopic}
+              onChange={(e) => setSelectedTopic(e.target.value)}
+            >
+              <option value="all">Tất cả</option>
+              {topics.map((t) => (
+                <option key={t.topicId} value={t.topicId}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="dash-select-wrap">
+            <label htmlFor="wordCount">📊 Số từ</label>
+            <select
+              id="wordCount"
+              value={wordCount}
+              onChange={(e) => setWordCount(Number(e.target.value))}
+            >
+              {[5, 10, 15, 20, 25, 30, 35, 40, 45, 50].map((n) => (
+                <option key={n} value={n}>{n} từ</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Nút học + refresh */}
+        <div className="dash-footer">
+          <button className="btn btn-primary btn-block" onClick={onStartLearningSession}>
+            🎯 HỌC NGAY
+          </button>
+          {/* Nút refresh tạm ẩn
+          <button
+            className="dash-refresh-btn"
+            onClick={onRefreshDashboard}
+            title="Làm mới thống kê"
           >
-            <option value="all">✨ Tất cả chủ đề</option>
-            {topics.map((t) => (
-              <option key={t.topicId} value={t.topicId}>{t.name}</option>
-            ))}
-          </select>
+            🔄
+          </button>
+          */}
         </div>
 
-        <div className="mt-16">
-          <label className="field-label" htmlFor="wordCount">📊 Số từ muốn học</label>
-          <select
-            id="wordCount"
-            className="input-field"
-            value={wordCount}
-            onChange={(e) => setWordCount(Number(e.target.value))}
-          >
-            {[5, 10, 15, 20, 25, 30, 35, 40, 45, 50].map((n) => (
-              <option key={n} value={n}>{n} từ</option>
-            ))}
-          </select>
-        </div>
-
-        <button className="btn btn-primary btn-block mt-16" onClick={onStartLearningSession}>
-          🎯 HỌC NGAY
-        </button>
-
-        <div className="mt-16">
-          <button className="btn btn-secondary btn-block" onClick={onRefreshDashboard}>🔄 Làm mới</button>
-        </div>
-
-        <div className="card mt-24" style={{ boxShadow: 'none', background: '#f7fafc', padding: '18px' }}>
-          <div className="row-between">
-            <span className="text-muted">Tổng từ vựng có sẵn</span>
-            <strong>{stats?.totalAvailable ?? 0}</strong>
-          </div>
-          <div className="row-between mt-16">
-            <span className="text-muted">Box 1 (mới/đang học)</span>
-            <strong>{stats?.box1Count ?? 0}</strong>
-          </div>
-          <div className="row-between mt-16">
-            <span className="text-muted">Box 2 (quen dần)</span>
-            <strong>{stats?.box2Count ?? 0}</strong>
-          </div>
-          <div className="row-between mt-16">
-            <span className="text-muted">Box 3 (đã thuộc)</span>
-            <strong>{stats?.box3Count ?? 0}</strong>
-          </div>
-        </div>
       </div>
     </section>
   );
