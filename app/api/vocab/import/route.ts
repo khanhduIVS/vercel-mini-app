@@ -7,20 +7,28 @@ interface ParsedRow {
   ipa: string;
   wordType: string;
   meaning: string;
-  /** Tên chủ đề thô từ CSV (chuỗi rỗng = không chỉ định). */
-  topicName: string;
+  /**
+   * Cột 5 trong CSV — có thể là:
+   *   - Tên chủ đề tự do (ví dụ "Con vật", "Màu sắc")
+   *   - UUID topic_id xuất thẳng từ DB (ví dụ "6b487997-0ec6-44f1-ae46-c53e496b328b")
+   *   - Rỗng = không chỉ định chủ đề
+   */
+  topicRaw: string;
   imageUrl: string;
 }
 
 interface ResolvedRow extends ParsedRow {
-  /** topic_id đã resolve từ topicName; null nếu topicName rỗng. */
+  /** topic_id đã resolve; null nếu topicRaw rỗng hoặc không tìm thấy. */
   topicId: string | null;
 }
 
-/** Số dòng xử lý mỗi batch khi dùng bulk upsert — giữ câu lệnh SQL ở kích thước hợp lý. */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const BULK_BATCH_SIZE = 500;
 
-/** Parse toàn bộ text CSV thành danh sách dòng hợp lệ, đếm số dòng lỗi định dạng. */
+/** Parse toàn bộ text CSV thành danh sách dòng hợp lệ, đếm số dòng lỗi định dạng.
+ *  Cột 7 (created_date từ export DB) được bỏ qua tự động nếu có.
+ */
 function parseCsvRows(text: string): { rows: ParsedRow[]; errors: number } {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
   const rows: ParsedRow[] = [];
@@ -30,68 +38,71 @@ function parseCsvRows(text: string): { rows: ParsedRow[]; errors: number } {
     const parts = parseCsvLine(line);
     if (parts.length < 4) { errors++; continue; }
 
-    const english = (parts[0] || '').trim();
-    const ipa = (parts[1] || '').trim();
-    const wordType = (parts[2] || '').trim();
-    const meaning = (parts[3] || '').trim();
-    const topicName = parts.length > 4 ? (parts[4] || '').trim() : '';
-    const imageUrl = parts.length > 5 ? (parts[5] || '').trim() : '';
+    const english   = (parts[0] || '').trim();
+    const ipa       = (parts[1] || '').trim();
+    const wordType  = (parts[2] || '').trim();
+    const meaning   = (parts[3] || '').trim();
+    const topicRaw  = parts.length > 4 ? (parts[4] || '').trim() : '';
+    const imageUrl  = parts.length > 5 ? (parts[5] || '').trim() : '';
+    // parts[6] = created_date từ export DB → bỏ qua
 
     if (!english || !meaning) { errors++; continue; }
-    rows.push({ english, ipa, wordType, meaning, topicName, imageUrl });
+    rows.push({ english, ipa, wordType, meaning, topicRaw, imageUrl });
   }
 
   return { rows, errors };
 }
 
 /**
- * Resolve tên chủ đề (text tự do trong CSV) thành topic_id cho toàn bộ các dòng,
- * tự tạo chủ đề mới nếu tên chưa tồn tại. Chỉ 1 lần gọi resolveTopicIds cho mọi tên
- * distinct xuất hiện trong file, tránh round-trip DB lặp lại cho mỗi dòng.
+ * Resolve cột topic cho từng dòng:
+ *   - UUID  → tra thẳng bảng topics, lấy topic_id nếu tồn tại
+ *   - Tên   → resolveTopicIds (tạo mới nếu chưa có)
+ *   - Rỗng  → topicId = null
  */
 async function resolveRowTopics(rows: ParsedRow[]): Promise<ResolvedRow[]> {
-  const names = rows.map((r) => r.topicName).filter((n) => n.length > 0);
-  const topicIds = await resolveTopicIds(names);
-  return rows.map((row) => ({
+  // Tách UUID và tên riêng để xử lý khác nhau
+  const uuidValues  = Array.from(new Set(rows.map(r => r.topicRaw).filter(v => UUID_PATTERN.test(v))));
+  const nameValues  = Array.from(new Set(rows.map(r => r.topicRaw).filter(v => v && !UUID_PATTERN.test(v))));
+
+  // Map topicRaw → topic_id
+  const topicMap = new Map<string, string>();
+
+  // UUID: kiểm tra tồn tại trong bảng topics
+  if (uuidValues.length > 0) {
+    const found = await sql`SELECT topic_id FROM topics WHERE topic_id = ANY(${uuidValues})`;
+    for (const row of found) {
+      topicMap.set(String(row.topic_id), String(row.topic_id));
+    }
+  }
+
+  // Tên: resolve (upsert) qua resolveTopicIds
+  if (nameValues.length > 0) {
+    const resolved = await resolveTopicIds(nameValues);
+    resolved.forEach((id, name) => { topicMap.set(name, id); });
+  }
+
+  return rows.map(row => ({
     ...row,
-    topicId: row.topicName ? (topicIds.get(row.topicName) || null) : null,
+    topicId: row.topicRaw ? (topicMap.get(row.topicRaw) || null) : null,
   }));
 }
 
-/**
- * Loại bỏ các dòng trùng hệt khóa (english, wordType) trong cùng 1 lần import —
- * 1 câu lệnh ON CONFLICT không thể cập nhật cùng 1 dòng 2 lần. Giữ dòng xuất hiện SAU CÙNG
- * trong file (coi như dữ liệu mới nhất ghi đè dữ liệu cũ hơn ở phía trên, giống hành vi
- * tuần tự tự nhiên khi import). Dòng cùng từ nhưng KHÁC loại từ không bị ảnh hưởng —
- * chúng là 2 bản ghi hợp lệ riêng biệt.
- */
 function dedupeRowsForBatch(rows: ResolvedRow[]): ResolvedRow[] {
   const map = new Map<string, ResolvedRow>();
   for (const row of rows) {
     const key = `${row.english.toLowerCase()}|${row.wordType.toLowerCase()}`;
-    map.set(key, row); // dòng sau đè dòng trước nếu trùng khóa
+    map.set(key, row);
   }
   return Array.from(map.values());
 }
 
-/**
- * Upsert hàng loạt bằng 1 câu lệnh INSERT ... ON CONFLICT DO UPDATE cho mỗi batch,
- * thay vì 1 SELECT + 1 INSERT/UPDATE riêng cho từng dòng. Giảm số round-trip DB
- * từ O(n) query xuống O(n / BULK_BATCH_SIZE), tránh timeout khi import file lớn (vài nghìn dòng).
- * `xmax = 0` là cách PostgreSQL phân biệt dòng vừa được INSERT mới (true) với dòng bị UPDATE (false)
- * trong cùng 1 câu lệnh ON CONFLICT.
- * Khóa trùng lặp là (english_word, word_type) — cùng từ nhưng khác loại từ (ví dụ "good" adj
- * và "good" n) là 2 bản ghi riêng biệt, không ghi đè lẫn nhau.
- * Lưu ý: topic_id rỗng (null) nghĩa là "không chỉ định" trong dòng CSV này — giữ nguyên
- * topic_id cũ của bản ghi đã tồn tại (COALESCE), không ghi đè thành NULL.
- */
 async function bulkUpsertBatch(batch: ResolvedRow[]): Promise<{ imported: number; updated: number }> {
   const valuesSql: string[] = [];
   const params: (string | null)[] = [];
   let idx = 1;
 
   for (const row of batch) {
-    valuesSql.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5})`);
+    valuesSql.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5})`);
     params.push(row.english, row.ipa, row.wordType, row.meaning, row.topicId, row.imageUrl);
     idx += 6;
   }
@@ -100,27 +111,22 @@ async function bulkUpsertBatch(batch: ResolvedRow[]): Promise<{ imported: number
     INSERT INTO vocab (english_word, ipa, word_type, vietnamese_meaning, topic_id, image_url)
     VALUES ${valuesSql.join(', ')}
     ON CONFLICT (LOWER(english_word), LOWER(word_type)) DO UPDATE SET
-      ipa = COALESCE(NULLIF(EXCLUDED.ipa, ''), vocab.ipa),
+      ipa                = COALESCE(NULLIF(EXCLUDED.ipa, ''), vocab.ipa),
       vietnamese_meaning = COALESCE(NULLIF(EXCLUDED.vietnamese_meaning, ''), vocab.vietnamese_meaning),
-      topic_id = COALESCE(EXCLUDED.topic_id, vocab.topic_id),
-      image_url = COALESCE(NULLIF(EXCLUDED.image_url, ''), vocab.image_url)
+      topic_id           = COALESCE(EXCLUDED.topic_id, vocab.topic_id),
+      image_url          = COALESCE(NULLIF(EXCLUDED.image_url, ''), vocab.image_url)
     RETURNING (xmax = 0) AS inserted
   `;
 
   const rows = await sqlQuery<{ inserted: boolean }>(query, params as (string | number)[]);
-  const imported = rows.filter((r) => r.inserted).length;
-  const updated = rows.length - imported;
-  return { imported, updated };
+  const imported = rows.filter(r => r.inserted).length;
+  return { imported, updated: rows.length - imported };
 }
 
-/**
- * Fallback chậm (SELECT + INSERT/UPDATE từng dòng) — dùng khi chưa có unique index hỗ trợ ON CONFLICT.
- * Khớp theo CẢ (english_word, word_type) — cùng từ nhưng khác loại từ là 2 bản ghi riêng biệt.
- */
 async function upsertRowSlow(row: ResolvedRow): Promise<'imported' | 'updated' | 'unchanged'> {
   const { english, ipa, wordType, meaning, topicId, imageUrl } = row;
   const existing = await sql`
-    SELECT word_id, ipa, word_type, vietnamese_meaning, topic_id, image_url
+    SELECT word_id, ipa, vietnamese_meaning, topic_id, image_url
     FROM vocab WHERE LOWER(english_word) = LOWER(${english}) AND LOWER(word_type) = LOWER(${wordType})
   `;
 
@@ -133,16 +139,13 @@ async function upsertRowSlow(row: ResolvedRow): Promise<'imported' | 'updated' |
   }
 
   const cur = existing[0];
-  const newIpa = ipa || cur.ipa;
-  const newMeaning = meaning || cur.vietnamese_meaning;
-  const newTopicId = topicId || cur.topic_id;
-  const newImageUrl = imageUrl || cur.image_url;
+  const newIpa       = ipa       || cur.ipa;
+  const newMeaning   = meaning   || cur.vietnamese_meaning;
+  const newTopicId   = topicId   || cur.topic_id;
+  const newImageUrl  = imageUrl  || cur.image_url;
 
-  const changed =
-    newIpa !== cur.ipa ||
-    newMeaning !== cur.vietnamese_meaning ||
-    newTopicId !== cur.topic_id ||
-    newImageUrl !== cur.image_url;
+  const changed = newIpa !== cur.ipa || newMeaning !== cur.vietnamese_meaning
+    || newTopicId !== cur.topic_id || newImageUrl !== cur.image_url;
 
   if (!changed) return 'unchanged';
 
@@ -155,15 +158,16 @@ async function upsertRowSlow(row: ResolvedRow): Promise<'imported' | 'updated' |
   return 'updated';
 }
 
-/** POST /api/vocab/import — bulk import / upsert from CSV text. Cột topic trong CSV là TÊN tự do. */
+/** POST /api/vocab/import — bulk import / upsert from CSV.
+ *  Cột 5 (topic) chấp nhận tên tự do HOẶC UUID topic_id xuất từ DB.
+ *  Cột 7 (created_date từ export DB) được bỏ qua tự động.
+ */
 export async function POST(request: Request) {
   try {
     await ensureTables();
     const { csv } = await request.json();
     const text = String(csv ?? '').trim();
-    if (!text) {
-      return NextResponse.json({ error: 'Dữ liệu CSV trống' }, { status: 400 });
-    }
+    if (!text) return NextResponse.json({ error: 'Dữ liệu CSV trống' }, { status: 400 });
 
     const { rows: parsedRows, errors } = parseCsvRows(text);
     const resolvedRows = await resolveRowTopics(parsedRows);
@@ -172,22 +176,13 @@ export async function POST(request: Request) {
     const canBulkUpsert = await hasVocabUpsertIndex();
 
     if (canBulkUpsert) {
-      // Dedupe theo (english, wordType) trong TOÀN BỘ file trước khi chia batch —
-      // tránh lỗi "ON CONFLICT DO UPDATE command cannot affect row a second time"
-      // khi 1 batch có 2 dòng trùng hệt cả từ và loại từ.
       const rows = dedupeRowsForBatch(resolvedRows);
-      // Chế độ nhanh: upsert theo batch, mỗi batch 1 round-trip DB.
       for (let i = 0; i < rows.length; i += BULK_BATCH_SIZE) {
-        const batch = rows.slice(i, i + BULK_BATCH_SIZE);
-        const result = await bulkUpsertBatch(batch);
+        const result = await bulkUpsertBatch(rows.slice(i, i + BULK_BATCH_SIZE));
         imported += result.imported;
-        updated += result.updated;
+        updated  += result.updated;
       }
-      // Bulk upsert không phân biệt được "unchanged" vs "updated" (ON CONFLICT luôn chạy UPDATE SET),
-      // nên mọi dòng trùng đã tồn tại đều được tính là "updated" dù giá trị có thể giống hệt cũ.
     } else {
-      // Fallback chậm: xử lý tuần tự từng dòng (chỉ dùng khi dữ liệu cũ có (english_word, word_type)
-      // trùng khiến không tạo được unique index cho ON CONFLICT).
       for (const row of resolvedRows) {
         const outcome = await upsertRowSlow(row);
         if (outcome === 'imported') imported++;
@@ -196,12 +191,11 @@ export async function POST(request: Request) {
       }
     }
 
-    const result: ImportResult = { imported, updated, unchanged, errors };
-    return NextResponse.json(result);
+    return NextResponse.json({ imported, updated, unchanged, errors } as ImportResult);
   } catch (e) {
     if (e instanceof InvalidTopicNameError) {
       return NextResponse.json(
-        { error: `Cột chủ đề trong CSV chứa giá trị giống UUID (có thể nhập nhầm id thay vì tên): ${e.invalidNames.join(', ')}. Vui lòng sửa lại thành tên chủ đề (ví dụ "Màu sắc") và import lại.` },
+        { error: `Lỗi chủ đề: ${e.invalidNames.join(', ')}` },
         { status: 400 }
       );
     }
