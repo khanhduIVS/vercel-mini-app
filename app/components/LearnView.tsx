@@ -1,15 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Vocab } from '@/lib/types';
-import { speak, speakSlow } from '@/app/hooks/useLearnSession';
+import { speak, speakSlow, speakWithVietnamese, speakEdgeTTS } from '@/app/hooks/useLearnSession';
 import { WORD_TYPE_MAP, parseWordTypeCodes, filterKnownWordTypeCodes } from '@/app/lib/wordTypes';
 
-function WordMeta({ wordType, ipa, onSpeak, onSpeakSlow }: {
+function WordMeta({ wordType, ipa, onSpeak, onSpeakSlow, onSpeakBoth }: {
   wordType: string;
   ipa: string;
   onSpeak: () => void;
   onSpeakSlow: () => void;
+  onSpeakBoth: () => void;
 }) {
   const codes = filterKnownWordTypeCodes(parseWordTypeCodes(wordType));
   const desc = codes.map((c) => WORD_TYPE_MAP[c]).filter(Boolean).join(', ');
@@ -22,11 +23,12 @@ function WordMeta({ wordType, ipa, onSpeak, onSpeakSlow }: {
           {desc && <span className="word-type-desc">({desc})</span>}
         </div>
       )}
-      {/* Dòng 2: phiên âm + 2 nút phát âm */}
+      {/* Dòng 2: phiên âm + 3 nút phát âm */}
       <div className="learn-meta">
         {ipa && <span className="word-ipa" style={{ marginTop: 0 }}>{ipa}</span>}
-        <button className="learn-speak-btn" onClick={onSpeak} title="Phát âm bình thường">🔊</button>
-        <button className="learn-speak-btn learn-speak-slow-btn" onClick={onSpeakSlow} title="Phát âm chậm">🐢</button>
+        <button className="learn-speak-btn" onClick={onSpeak} title="Phát âm tiếng Anh">🔊</button>
+        <button className="learn-speak-btn learn-speak-slow-btn" onClick={onSpeakSlow} title="Phát âm tiếng Anh (chậm)">🐢</button>
+        <button className="learn-speak-btn learn-speak-both-btn" onClick={onSpeakBoth} title="Phát âm Anh rồi Việt">🔊🇻🇳</button>
       </div>
     </div>
   );
@@ -54,10 +56,17 @@ export function LearnView({
   const [imageErrorWordId, setImageErrorWordId] = useState<string | null>(null);
   const hasImage = !!currentWord?.imageUrl && currentWord.wordId !== imageErrorWordId;
 
+  // Tự động phát âm Anh + Việt (Edge TTS) khi chuyển từ
+  useEffect(() => {
+    if (active && currentWord) {
+      speakEdgeTTS(currentWord.englishWord, currentWord.vietnameseMeaning);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentWord?.wordId, active]);
+
   // ---- Thanh số từ với phân trang kiểu ... ----
   function buildNavItems(total: number, current: number): (number | '...')[] {
     if (total <= 7) return Array.from({ length: total }, (_, i) => i);
-
     const around = new Set(
       [0, total - 1, current - 1, current, current + 1].filter(i => i >= 0 && i < total)
     );
@@ -98,7 +107,7 @@ export function LearnView({
           </button>
         </div>
 
-        {/* Thanh số từ — căng giữa, tối đa 7 nút + ... */}
+        {/* Thanh số từ */}
         {totalWords > 0 && (
           <div className="learn-nav" style={{ justifyContent: 'center' }}>
             {navItems.map((item, idx) =>
@@ -160,6 +169,7 @@ export function LearnView({
               ipa={currentWord.ipa}
               onSpeak={() => speak(currentWord.englishWord)}
               onSpeakSlow={() => speakSlow(currentWord.englishWord)}
+              onSpeakBoth={() => speakEdgeTTS(currentWord.englishWord, currentWord.vietnameseMeaning)}
             />
 
             <div className="learn-divider" />
@@ -168,23 +178,15 @@ export function LearnView({
           </div>
         )}
 
-        {/* Footer: 2 nút điều hướng */}
+        {/* Footer */}
         <div className="learn-footer">
-          <button
-            className="btn btn-secondary"
-            onClick={onPrevWord}
-            disabled={currentIndex === 0}
-          >
+          <button className="btn btn-secondary" onClick={onPrevWord} disabled={currentIndex === 0}>
             ← Trước
           </button>
           {isLastWord ? (
-            <button className="btn btn-primary" onClick={onBackToDashboard}>
-              ✓ Kết thúc
-            </button>
+            <button className="btn btn-primary" onClick={onBackToDashboard}>✓ Kết thúc</button>
           ) : (
-            <button className="btn btn-primary" onClick={onNextWord}>
-              Tiếp →
-            </button>
+            <button className="btn btn-primary" onClick={onNextWord}>Tiếp →</button>
           )}
         </div>
 

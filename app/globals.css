@@ -546,6 +546,15 @@ label.field-label {
 }
 .learn-speak-slow-btn:hover { background: #e9d8fd; }
 
+/* Nút phát âm Anh + Việt — màu xanh lá */
+.learn-speak-both-btn {
+  color: #276749;
+  border-color: #c6f6d5;
+  font-size: 13px;
+  width: 40px;
+}
+.learn-speak-both-btn:hover { background: #c6f6d5; }
+
 /* Divider */
 .learn-divider {
   height: 1px;

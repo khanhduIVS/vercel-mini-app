@@ -26,6 +26,105 @@ export function speakSlow(text: string) {
   window.speechSynthesis.speak(u);
 }
 
+/**
+ * [DỰ PHÒNG - chưa dùng] Phát âm tiếng Anh, sau khi xong tự động phát nghĩa tiếng Việt.
+ * Dùng Web Speech API — giọng phụ thuộc thiết bị, không đảm bảo giọng miền Nam.
+ */
+export function speakWithVietnamese(
+  englishText: string,
+  vietnameseText: string,
+  rate = 0.9
+) {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+
+  // --- Utterance 1: tiếng Anh ---
+  const uEn = new SpeechSynthesisUtterance(englishText);
+  uEn.lang = 'en-US';
+  uEn.rate = rate;
+
+  // --- Utterance 2: tiếng Việt ---
+  const uVi = new SpeechSynthesisUtterance(vietnameseText);
+  uVi.lang = 'vi-VN';
+  uVi.rate = 0.9;
+
+  // Chọn giọng vi-VN tốt nhất có sẵn trên thiết bị
+  // Chrome/Edge thường tải giọng bất đồng bộ → dùng getVoices() lúc đọc
+  const pickViVoice = () => {
+    const voices = window.speechSynthesis.getVoices();
+    // Ưu tiên HoaiMy (miền Nam), sau đó NamMinh, sau đó bất kỳ vi-VN
+    const preferred = ['HoaiMy', 'NamMinh'];
+    for (const name of preferred) {
+      const v = voices.find((v) => v.lang === 'vi-VN' && v.name.includes(name));
+      if (v) return v;
+    }
+    return voices.find((v) => v.lang === 'vi-VN' || v.lang.startsWith('vi')) || null;
+  };
+
+  uEn.onend = () => {
+    // Gán giọng ngay trước khi speak để đảm bảo danh sách voices đã load
+    const viVoice = pickViVoice();
+    if (viVoice) uVi.voice = viVoice;
+    // Delay nhỏ 300ms để tạo khoảng ngắt tự nhiên giữa 2 ngôn ngữ
+    setTimeout(() => window.speechSynthesis.speak(uVi), 300);
+  };
+
+  window.speechSynthesis.speak(uEn);
+}
+
+/**
+ * Phát âm tiếng Anh rồi tiếng Việt dùng Microsoft Edge TTS (giọng neural chất lượng cao).
+ * Gọi qua API route /api/tts (server-side) → trả audio/mpeg → phát bằng Web Audio.
+ * Giọng mặc định: vi-VN-HoaiMyNeural (nữ miền Nam).
+ *
+ * ⚠️  Lưu ý: @travisvn/edge-tts dùng WebSocket tới Microsoft, có thể chậm 20-30s
+ *     trong môi trường local/VPN. Trên Vercel production thường nhanh hơn (~2-3s).
+ *
+ * @param englishText      Từ tiếng Anh
+ * @param vietnameseText   Nghĩa tiếng Việt
+ * @param viVoice          Giọng tiếng Việt (mặc định: vi-VN-HoaiMyNeural)
+ */
+export async function speakEdgeTTS(
+  englishText: string,
+  vietnameseText: string,
+  viVoice = 'vi-VN-HoaiMyNeural'
+): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  // Phát audio blob từ URL object, trả về Promise hoàn thành khi kết thúc
+  const playAudio = (url: string): Promise<void> =>
+    new Promise((resolve, reject) => {
+      const audio = new Audio(url);
+      audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+      audio.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Audio error')); };
+      audio.play().catch(reject);
+    });
+
+  // Fetch audio từ API route Edge TTS
+  const fetchAudio = async (text: string, voice: string): Promise<string> => {
+    const params = new URLSearchParams({ text, voice });
+    const res = await fetch(`/api/tts?${params}`);
+    if (!res.ok) throw new Error(`TTS API error: ${res.status}`);
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  };
+
+  try {
+    // Fetch song song cả 2 để giảm tổng thời gian chờ
+    const [enUrl, viUrl] = await Promise.all([
+      fetchAudio(englishText, 'en-US-AriaNeural'),
+      fetchAudio(vietnameseText, viVoice),
+    ]);
+
+    // Phát tuần tự: Anh → nghỉ 400ms → Việt
+    await playAudio(enUrl);
+    await new Promise<void>((r) => setTimeout(r, 400));
+    await playAudio(viUrl);
+  } catch (e) {
+    console.error('[speakEdgeTTS]', e);
+  }
+}
+
 export interface UseLearnSessionResult {
   wordList: Vocab[];
   currentIndex: number;
