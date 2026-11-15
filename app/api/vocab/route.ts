@@ -10,10 +10,10 @@ export async function GET(request: Request) {
     const topicId = (searchParams.get('topicId') || '').trim();
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const pageSize = Math.max(1, parseInt(searchParams.get('pageSize') || '20', 10));
+    const noImageOnly = searchParams.get('noImageOnly') === '1';
 
     await ensureTables();
 
-    // Build dynamic WHERE clause (alias v = vocab, dùng chung với VOCAB_TOPIC_JOIN)
     let where = 'WHERE 1=1';
     const params: (string | number)[] = [];
     let idx = 1;
@@ -27,6 +27,9 @@ export async function GET(request: Request) {
       where += ` AND v.topic_id = $${idx}`;
       params.push(topicId);
       idx++;
+    }
+    if (noImageOnly) {
+      where += ` AND (v.image_url IS NULL OR v.image_url = '')`;
     }
 
     // Count total và số từ chưa có ảnh cùng lúc

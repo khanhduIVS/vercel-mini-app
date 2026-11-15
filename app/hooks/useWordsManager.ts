@@ -165,16 +165,12 @@ export function useWordsManager(
    */
   const bulkAutoFindImages = async () => {
     const topicId = managerTopicFilter;
-    const topicName = topicId ? (topics.find((t) => t.topicId === topicId)?.name || '') : '';
-    const confirmMsg = topicName
-      ? `Tự động tìm và cập nhật ảnh cho TẤT CẢ từ thuộc chủ đề "${topicName}"?`
-      : 'Tự động tìm và cập nhật ảnh cho TẤT CẢ từ vựng (mọi chủ đề)?';
-    if (!confirm(confirmMsg)) return;
 
     ui.setLoading(true);
-    ui.setLoadingMessage('Đang tải danh sách từ...');
+    ui.setLoadingMessage('Đang tải danh sách từ chưa có ảnh...');
     try {
-      const data = await fetchVocabList('', topicId, 1, 10000);
+      // Chỉ lấy từ chưa có ảnh — filter ngay từ DB, không lấy thừa
+      const data = await fetchVocabList('', topicId, 1, 10000, true);
       const words = data.words;
 
       if (words.length === 0) {
@@ -184,7 +180,6 @@ export function useWordsManager(
 
       let successCount = 0;
       let failCount = 0;
-      let skipCount = 0;
       let wasRateLimited = false;
       let processedCount = 0;
 
@@ -201,8 +196,7 @@ export function useWordsManager(
             wasRateLimited = true;
             break outer;
           }
-          if (result === 'skipped') skipCount++;
-          else if (result === 'success') successCount++;
+          if (result === 'success') successCount++;
           else failCount++;
         }
       }
@@ -210,14 +204,14 @@ export function useWordsManager(
       if (wasRateLimited) {
         ui.showToast(
           `⚠️ Đã hết lượt gọi Unsplash API sau khi xử lý ${processedCount - 1}/${words.length} từ ` +
-          `(✅ ${successCount} thành công, ❌ ${failCount} thất bại, ⏭️ ${skipCount} đã có ảnh).\n` +
+          `(✅ ${successCount} thành công, ❌ ${failCount} thất bại).\n` +
           `Vui lòng thực hiện lại sau để cập nhật các từ còn lại.`,
           'error',
           7000
         );
       } else {
         ui.showToast(
-          `Hoàn tất: ✅ ${successCount} thành công, ❌ ${failCount} thất bại, ⏭️ ${skipCount} đã có ảnh`,
+          `Hoàn tất: ✅ ${successCount} thành công, ❌ ${failCount} thất bại`,
           failCount > 0 ? 'info' : 'success',
           5000
         );

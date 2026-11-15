@@ -29,10 +29,12 @@ export async function fetchVocabList(
   search: string,
   topicId: string,
   page: number,
-  pageSize: number
+  pageSize: number,
+  noImageOnly = false
 ): Promise<VocabListResult> {
   const params = new URLSearchParams({
     search, topicId, page: String(page), pageSize: String(pageSize),
+    ...(noImageOnly ? { noImageOnly: '1' } : {}),
   });
   const res = await fetch(`/api/vocab?${params}`);
   if (!res.ok) throw new Error('Không thể tải danh sách từ');
