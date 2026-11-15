@@ -17,6 +17,15 @@ export function speak(text: string) {
   window.speechSynthesis.speak(u);
 }
 
+export function speakSlow(text: string) {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'en-US';
+  u.rate = 0.5;
+  window.speechSynthesis.speak(u);
+}
+
 export interface UseLearnSessionResult {
   wordList: Vocab[];
   currentIndex: number;

@@ -534,9 +534,17 @@ label.field-label {
   justify-content: center;
   transition: background 0.2s, transform 0.1s;
   flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 .learn-speak-btn:hover { background: #bee3f8; }
 .learn-speak-btn:active { transform: scale(0.9); }
+
+/* Nút phát âm chậm — màu tím nhạt để phân biệt */
+.learn-speak-slow-btn {
+  color: #805ad5;
+  border-color: #e9d8fd;
+}
+.learn-speak-slow-btn:hover { background: #e9d8fd; }
 
 /* Divider */
 .learn-divider {

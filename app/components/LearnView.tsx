@@ -2,10 +2,15 @@
 
 import { useState } from 'react';
 import type { Vocab } from '@/lib/types';
-import { speak } from '@/app/hooks/useLearnSession';
+import { speak, speakSlow } from '@/app/hooks/useLearnSession';
 import { WORD_TYPE_MAP, parseWordTypeCodes, filterKnownWordTypeCodes } from '@/app/lib/wordTypes';
 
-function WordMeta({ wordType, ipa, onSpeak }: { wordType: string; ipa: string; onSpeak: () => void }) {
+function WordMeta({ wordType, ipa, onSpeak, onSpeakSlow }: {
+  wordType: string;
+  ipa: string;
+  onSpeak: () => void;
+  onSpeakSlow: () => void;
+}) {
   const codes = filterKnownWordTypeCodes(parseWordTypeCodes(wordType));
   const desc = codes.map((c) => WORD_TYPE_MAP[c]).filter(Boolean).join(', ');
   return (
@@ -17,10 +22,11 @@ function WordMeta({ wordType, ipa, onSpeak }: { wordType: string; ipa: string; o
           {desc && <span className="word-type-desc">({desc})</span>}
         </div>
       )}
-      {/* Dòng 2: phiên âm + nút phát âm */}
+      {/* Dòng 2: phiên âm + 2 nút phát âm */}
       <div className="learn-meta">
         {ipa && <span className="word-ipa" style={{ marginTop: 0 }}>{ipa}</span>}
-        <button className="learn-speak-btn" onClick={onSpeak} title="Nghe phát âm">🔊</button>
+        <button className="learn-speak-btn" onClick={onSpeak} title="Phát âm bình thường">🔊</button>
+        <button className="learn-speak-btn learn-speak-slow-btn" onClick={onSpeakSlow} title="Phát âm chậm">🐢</button>
       </div>
     </div>
   );
@@ -52,12 +58,10 @@ export function LearnView({
   function buildNavItems(total: number, current: number): (number | '...')[] {
     if (total <= 7) return Array.from({ length: total }, (_, i) => i);
 
-    const first = 0, last = total - 1;
+    const around = new Set(
+      [0, total - 1, current - 1, current, current + 1].filter(i => i >= 0 && i < total)
+    );
     const items: (number | '...')[] = [];
-
-    // Vùng xung quanh current: current-1, current, current+1
-    const around = new Set([first, last, current - 1, current, current + 1].filter(i => i >= 0 && i < total));
-
     let prev = -1;
     for (const i of Array.from(around).sort((a, b) => a - b)) {
       if (prev !== -1 && i - prev > 1) items.push('...');
@@ -69,14 +73,11 @@ export function LearnView({
 
   const navItems = buildNavItems(totalWords, currentIndex);
 
-  // Khi bấm '...': nhảy 5 bước theo hướng gần nhất
   function handleDots(itemIndex: number) {
-    const items = navItems;
-    const left  = items[itemIndex - 1];
-    const right = items[itemIndex + 1];
+    const left  = navItems[itemIndex - 1];
+    const right = navItems[itemIndex + 1];
     if (typeof left === 'number' && typeof right === 'number') {
-      const target = Math.round((left + right) / 2);
-      onGoToIndex(Math.min(Math.max(target, 0), totalWords - 1));
+      onGoToIndex(Math.min(Math.max(Math.round((left + right) / 2), 0), totalWords - 1));
     }
   }
 
@@ -88,7 +89,11 @@ export function LearnView({
         <div className="learn-header">
           <span className="badge">Từ {currentIndex + 1}/{totalWords}</span>
           <span className="countdown-badge">⏱ {countdown}s</span>
-          <button className="btn btn-secondary" style={{ padding: '7px 14px', fontSize: '0.85rem' }} onClick={onBackToDashboard}>
+          <button
+            className="btn btn-secondary"
+            style={{ padding: '7px 14px', fontSize: '0.85rem' }}
+            onClick={onBackToDashboard}
+          >
             ← Quay lại
           </button>
         </div>
@@ -132,7 +137,6 @@ export function LearnView({
               <div className="learn-topic">📂 {currentWord.topic}</div>
             )}
 
-            {/* Khung ảnh — luôn hiển thị (placeholder nếu chưa có ảnh) */}
             <div className="learn-image-frame">
               {hasImage ? (
                 <img
@@ -149,19 +153,17 @@ export function LearnView({
               )}
             </div>
 
-            {/* Từ tiếng Anh */}
             <div className="learn-word-en">{currentWord.englishWord}</div>
 
-            {/* Loại từ + IPA + nút phát âm — 1 dòng ngang */}
             <WordMeta
               wordType={currentWord.wordType}
               ipa={currentWord.ipa}
               onSpeak={() => speak(currentWord.englishWord)}
+              onSpeakSlow={() => speakSlow(currentWord.englishWord)}
             />
 
             <div className="learn-divider" />
 
-            {/* Nghĩa tiếng Việt */}
             <div className="learn-word-vi">{currentWord.vietnameseMeaning}</div>
           </div>
         )}
