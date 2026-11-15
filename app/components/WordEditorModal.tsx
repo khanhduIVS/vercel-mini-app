@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import type { UseWordEditorResult } from '@/app/hooks/useWordEditor';
-import { WORD_TYPE_OPTIONS, parseWordTypeCodes, filterKnownWordTypeCodes, buildWordTypeString } from '@/app/lib/wordTypes';
+import { WORD_TYPE_OPTIONS, WORD_TYPE_MAP, parseWordTypeCodes, filterKnownWordTypeCodes, buildWordTypeString } from '@/app/lib/wordTypes';
 import { speak, speakWithVietnamese } from '@/app/hooks/useLearnSession';
 import type { Topic } from '@/lib/types';
 
@@ -33,6 +34,7 @@ export function WordEditorModal({ editor, topics, onSave, onDelete, onFetchImage
   // Chỉ các mã khớp danh sách chuẩn mới được tick; mã lạ (ví dụ "to", lỗi chính tả) bị bỏ qua
   // khi hiển thị — và sẽ bị loại khỏi dữ liệu nếu người dùng bấm Lưu sau khi sửa checkbox này.
   const selectedWordTypeCodes = new Set(filterKnownWordTypeCodes(parseWordTypeCodes(editWordType)));
+  const [showWordTypePanel, setShowWordTypePanel] = useState(false);
 
   const toggleWordType = (code: string) => {
     const next = new Set(selectedWordTypeCodes);
@@ -57,81 +59,129 @@ export function WordEditorModal({ editor, topics, onSave, onDelete, onFetchImage
         <div className="mt-16">
           <div className="row-between" style={{ marginBottom: '8px' }}>
             <label className="field-label" style={{ margin: 0 }}>Phiên âm</label>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              {editIpa && (
-                <button
-                  type="button"
-                  onClick={() => speak(editEnglish)}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: '#3182ce', fontSize: '0.8rem', fontWeight: 600,
-                    padding: 0, textDecoration: 'underline',
-                  }}
-                >
-                  🔊 Nghe
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={fetchIpa}
-                disabled={ipaLoading}
-                style={{
-                  background: 'none', border: 'none', cursor: ipaLoading ? 'not-allowed' : 'pointer',
-                  color: 'var(--primary-start)', fontSize: '0.8rem', fontWeight: 600,
-                  padding: 0, opacity: ipaLoading ? 0.5 : 1, textDecoration: 'underline',
-                }}
-              >
-                {ipaLoading ? '⏳ Đang tìm...' : '🔄 Tự động lấy'}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={fetchIpa}
+              disabled={ipaLoading}
+              style={{
+                background: 'none', border: 'none', cursor: ipaLoading ? 'not-allowed' : 'pointer',
+                color: 'var(--primary-start)', fontSize: '0.8rem', fontWeight: 600,
+                padding: 0, opacity: ipaLoading ? 0.5 : 1, textDecoration: 'underline',
+              }}
+            >
+              {ipaLoading ? '⏳ Đang tìm...' : '🔄 Tự động lấy'}
+            </button>
           </div>
-          <input
-            className="input-field"
-            type="text"
-            value={editIpa}
-            onChange={(e) => setEditIpa(e.target.value)}
-          />
-        </div>
-        <div className="mt-16">
-          <label className="field-label">Loại từ</label>
-          <div className="word-type-checkbox-grid">
-            {WORD_TYPE_OPTIONS.map((opt) => (
-              <label key={opt.code} className="word-type-checkbox-item">
-                <input
-                  type="checkbox"
-                  checked={selectedWordTypeCodes.has(opt.code)}
-                  onChange={() => toggleWordType(opt.code)}
-                />
-                <span>{opt.label} ({opt.code})</span>
-              </label>
-            ))}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <input
+              className="input-field"
+              type="text"
+              value={editIpa}
+              onChange={(e) => setEditIpa(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <button
+              type="button"
+              className="learn-speak-btn"
+              onClick={() => speak(editEnglish)}
+              title="Phát âm tiếng Anh"
+            >
+              🔊
+            </button>
           </div>
         </div>
         <div className="mt-16">
           <div className="row-between" style={{ marginBottom: '8px' }}>
-            <label className="field-label" style={{ margin: 0 }}>Nghĩa tiếng Việt</label>
-            {editMeaning && (
-              <button
-                type="button"
-                onClick={() => speakWithVietnamese(editEnglish, editMeaning)}
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: '#276749', fontSize: '0.8rem', fontWeight: 600,
-                  padding: 0, textDecoration: 'underline',
-                }}
-              >
-                🔊🇻🇳 Nghe
-              </button>
+            <label className="field-label" style={{ margin: 0 }}>Loại từ</label>
+            <button
+              type="button"
+              onClick={() => setShowWordTypePanel((v) => !v)}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--primary-start)', fontSize: '0.8rem', fontWeight: 600,
+                padding: 0, textDecoration: 'underline',
+              }}
+            >
+              {showWordTypePanel ? '✕ Đóng' : '✏️ Chỉnh sửa'}
+            </button>
+          </div>
+
+          {/* Hộp hiển thị mã đã chọn — luôn hiện */}
+          <div
+            onClick={() => setShowWordTypePanel((v) => !v)}
+            style={{
+              border: '2px solid #e2e8f0',
+              borderRadius: '12px',
+              padding: '11px 16px',
+              minHeight: '44px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              flexWrap: 'wrap',
+              background: '#fff',
+              transition: 'border-color 0.2s',
+              borderColor: showWordTypePanel ? 'var(--primary-start)' : '#e2e8f0',
+            }}
+          >
+            {selectedWordTypeCodes.size === 0 ? (
+              <span style={{ color: '#a0aec0', fontSize: '0.9rem' }}>(chưa chọn)</span>
+            ) : (
+              Array.from(selectedWordTypeCodes).map((code, i, arr) => (
+                <span key={code} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                  <span style={{ color: '#805ad5', fontWeight: 700, fontSize: '0.9rem' }}>{code}</span>
+                  {WORD_TYPE_MAP[code] && (
+                    <span style={{ color: '#718096', fontSize: '0.78rem' }}>({WORD_TYPE_MAP[code]})</span>
+                  )}
+                  {i < arr.length - 1 && (
+                    <span style={{ color: '#cbd5e0', margin: '0 4px' }}>·</span>
+                  )}
+                </span>
+              ))
             )}
           </div>
-          <textarea
-            className="input-field"
-            rows={1}
-            placeholder="Nhập nghĩa tiếng Việt"
-            value={editMeaning}
-            onChange={(e) => setEditMeaning(e.target.value)}
-            style={{ minHeight: 'auto', padding: '13px 16px', fontFamily: 'inherit', fontSize: '16px' }}
-          />
+
+          {/* Panel checkbox — accordion */}
+          <div style={{
+            overflow: 'hidden',
+            maxHeight: showWordTypePanel ? '400px' : '0',
+            transition: 'max-height 0.2s ease',
+          }}>
+            <div className="word-type-checkbox-grid" style={{ marginTop: '8px' }}>
+              {WORD_TYPE_OPTIONS.map((opt) => (
+                <label key={opt.code} className="word-type-checkbox-item">
+                  <input
+                    type="checkbox"
+                    checked={selectedWordTypeCodes.has(opt.code)}
+                    onChange={() => toggleWordType(opt.code)}
+                  />
+                  <span>{opt.label} ({opt.code})</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="mt-16">
+          <label className="field-label" style={{ marginBottom: '8px' }}>Nghĩa tiếng Việt</label>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+            <textarea
+              className="input-field"
+              rows={1}
+              placeholder="Nhập nghĩa tiếng Việt"
+              value={editMeaning}
+              onChange={(e) => setEditMeaning(e.target.value)}
+              style={{ flex: 1, minHeight: 'auto', padding: '13px 16px', fontFamily: 'inherit', fontSize: '16px' }}
+            />
+            <button
+              type="button"
+              className="learn-speak-btn learn-speak-both-btn"
+              onClick={() => speakWithVietnamese(editEnglish, editMeaning)}
+              title="Phát âm tiếng Việt"
+              style={{ marginTop: '2px', flexShrink: 0 }}
+            >
+              🔊🇻🇳
+            </button>
+          </div>
         </div>
         <div className="mt-16">
           <label className="field-label">Chủ đề</label>
