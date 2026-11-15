@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { Vocab } from '@/lib/types';
-import { speak, speakSlow, speakWithVietnamese, speakEdgeTTS } from '@/app/hooks/useLearnSession';
+import { speak, speakSlow, speakWithVietnamese } from '@/app/hooks/useLearnSession';
 import { WORD_TYPE_MAP, parseWordTypeCodes, filterKnownWordTypeCodes } from '@/app/lib/wordTypes';
 
 function WordMeta({ wordType, ipa, onSpeak, onSpeakSlow, onSpeakBoth }: {
@@ -56,10 +56,10 @@ export function LearnView({
   const [imageErrorWordId, setImageErrorWordId] = useState<string | null>(null);
   const hasImage = !!currentWord?.imageUrl && currentWord.wordId !== imageErrorWordId;
 
-  // Tự động phát âm Anh + Việt (Edge TTS) khi chuyển từ
+  // Tự động phát âm Anh + Việt khi chuyển từ
   useEffect(() => {
     if (active && currentWord) {
-      speakEdgeTTS(currentWord.englishWord, currentWord.vietnameseMeaning);
+      speakWithVietnamese(currentWord.englishWord, currentWord.vietnameseMeaning);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentWord?.wordId, active]);
@@ -169,7 +169,7 @@ export function LearnView({
               ipa={currentWord.ipa}
               onSpeak={() => speak(currentWord.englishWord)}
               onSpeakSlow={() => speakSlow(currentWord.englishWord)}
-              onSpeakBoth={() => speakEdgeTTS(currentWord.englishWord, currentWord.vietnameseMeaning)}
+              onSpeakBoth={() => speakWithVietnamese(currentWord.englishWord, currentWord.vietnameseMeaning)}
             />
 
             <div className="learn-divider" />

@@ -27,8 +27,8 @@ export function speakSlow(text: string) {
 }
 
 /**
- * [DỰ PHÒNG - chưa dùng] Phát âm tiếng Anh, sau khi xong tự động phát nghĩa tiếng Việt.
- * Dùng Web Speech API — giọng phụ thuộc thiết bị, không đảm bảo giọng miền Nam.
+ * Phát âm tiếng Anh, sau khi xong tự động phát nghĩa tiếng Việt.
+ * Ưu tiên giọng vi-VN-HoaiMyNeural (Edge) → bất kỳ giọng vi-VN → fallback lang vi-VN.
  */
 export function speakWithVietnamese(
   englishText: string,
