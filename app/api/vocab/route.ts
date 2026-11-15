@@ -29,12 +29,16 @@ export async function GET(request: Request) {
       idx++;
     }
 
-    // Count total (không cần JOIN topics vì chỉ lọc theo topic_id)
+    // Count total và số từ chưa có ảnh cùng lúc
     const countResult = await sqlQuery(
-      `SELECT COUNT(*) AS cnt FROM vocab v ${where}`,
+      `SELECT
+        COUNT(*) AS cnt,
+        COUNT(*) FILTER (WHERE (v.image_url IS NULL OR v.image_url = '')) AS no_image_cnt
+       FROM vocab v ${where}`,
       params
     );
     const total = Number(countResult[0].cnt);
+    const noImageCount = Number(countResult[0].no_image_cnt);
 
     // Paginated query
     const offset = (page - 1) * pageSize;
@@ -43,7 +47,7 @@ export async function GET(request: Request) {
       [...params, pageSize, offset]
     );
 
-    return NextResponse.json({ words: rows, total });
+    return NextResponse.json({ words: rows, total, noImageCount });
   } catch {
     return NextResponse.json({ error: 'Không thể tải danh sách từ' }, { status: 500 });
   }

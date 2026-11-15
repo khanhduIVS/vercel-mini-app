@@ -7,6 +7,7 @@ import type { Vocab, ImportResult } from '@/lib/types';
 export interface VocabListResult {
   words: Vocab[];
   total: number;
+  noImageCount: number;
 }
 
 export interface VocabUpdateInput {
@@ -36,7 +37,7 @@ export async function fetchVocabList(
   const res = await fetch(`/api/vocab?${params}`);
   if (!res.ok) throw new Error('Không thể tải danh sách từ');
   const data = await res.json();
-  return { words: data.words || [], total: data.total || 0 };
+  return { words: data.words || [], total: data.total || 0, noImageCount: data.noImageCount || 0 };
 }
 
 /** GET /api/vocab/:id — lấy thông tin 1 từ. */

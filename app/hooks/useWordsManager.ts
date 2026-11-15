@@ -40,6 +40,7 @@ export interface UseWordsManagerResult {
   managerWords: Vocab[];
   managerTotal: number;
   managerPage: number;
+  noImageCount: number;
   managerSearchInput: string;
   setManagerSearchInput: (value: string) => void;
   /** topicId đang lọc, hoặc '' nghĩa là tất cả chủ đề. */
@@ -72,6 +73,7 @@ export function useWordsManager(
   const [showWordsManager, setShowWordsManager] = useState(false);
   const [managerWords, setManagerWords] = useState<Vocab[]>([]);
   const [managerTotal, setManagerTotal] = useState(0);
+  const [noImageCount, setNoImageCount] = useState(0);
   const [managerPage, setManagerPage] = useState(1);
   const [managerSearch, setManagerSearch] = useState('');
   const [managerSearchInput, setManagerSearchInput] = useState('');
@@ -83,6 +85,7 @@ export function useWordsManager(
       const data = await fetchVocabList(search, topicId, page, PAGE_SIZE);
       setManagerWords(data.words);
       setManagerTotal(data.total);
+      setNoImageCount(data.noImageCount);
     } catch {
       ui.showToast('Không thể tải danh sách từ', 'error');
     } finally {
