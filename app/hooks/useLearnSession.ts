@@ -218,12 +218,7 @@ export function useLearnSession(ui: UiFeedback, currentView: AppView): UseLearnS
     return () => stopCountdownRef.current();
   }, [currentIndex, currentView, wordList.length, isLastWord]);
 
-  // Phát âm từ khi từ hiện tại thay đổi
-  useEffect(() => {
-    if (currentView === 'learn' && wordList[currentIndex]) {
-      speak(wordList[currentIndex].englishWord);
-    }
-  }, [currentIndex, currentView, wordList]);
+  // Phát âm được xử lý ở LearnView theo chu kỳ — không phát ở đây nữa.
 
   const nextWord = useCallback(() => {
     if (wordList.length === 0) return;

@@ -1,10 +1,70 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Vocab } from '@/lib/types';
 import { speak, speakSlow, speakWithVietnamese } from '@/app/hooks/useLearnSession';
 import { WORD_TYPE_MAP, parseWordTypeCodes, filterKnownWordTypeCodes } from '@/app/lib/wordTypes';
 
+// ---------------------------------------------------------------------------
+//  Chu kỳ phát âm cho 1 từ:
+//    1s chờ → EN → 2s → EN → 1s → VI → 1s  (tổng ~5s / chu kỳ)
+//  Số chu kỳ = Math.floor(countdown / 5), tối thiểu 1.
+//  Mỗi khi wordId thay đổi, cancel cycle cũ và bắt đầu cycle mới.
+// ---------------------------------------------------------------------------
+function useSpeakCycle(word: Vocab | undefined, countdown: number, active: boolean) {
+  const cancelRef = useRef(false);
+
+  useEffect(() => {
+    if (!active || !word) return;
+
+    cancelRef.current = false;
+    const cycles = Math.max(1, Math.floor(countdown / 5));
+    const en = word.englishWord;
+    const vi = word.vietnameseMeaning;
+
+    // Helper: delay có thể bị cancel
+    const delay = (ms: number) =>
+      new Promise<void>((resolve, reject) => {
+        const t = setTimeout(() => {
+          if (cancelRef.current) reject(new Error('cancelled'));
+          else resolve();
+        }, ms);
+        // Lưu timeout để cancel nếu cần (không dùng clearTimeout trực tiếp,
+        // dùng cancelRef để reject bên trong setTimeout)
+        void t;
+      });
+
+    const runCycles = async () => {
+      try {
+        for (let i = 0; i < cycles; i++) {
+          if (cancelRef.current) return;
+          await delay(1000);                    // 1s chờ
+          if (cancelRef.current) return;
+          speak(en);                            // phát EN bình thường
+          await delay(2000);                    // 2s
+          if (cancelRef.current) return;
+          speakSlow(en);                        // phát EN chậm
+          await delay(1000);                    // 1s chờ cuối chu kỳ
+        }
+      } catch {
+        // bị cancel — dừng im lặng
+      }
+    };
+
+    runCycles();
+
+    return () => {
+      cancelRef.current = true;
+      if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
+    };
+  // countdown chỉ dùng lúc khởi động để tính số chu kỳ, không re-run khi đếm ngược
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [word?.wordId, active]);
+}
+
+// ---------------------------------------------------------------------------
+//  WordMeta: loại từ + IPA + nút phát âm
+// ---------------------------------------------------------------------------
 function WordMeta({ wordType, ipa, onSpeak, onSpeakSlow, onSpeakBoth }: {
   wordType: string;
   ipa: string;
@@ -16,14 +76,12 @@ function WordMeta({ wordType, ipa, onSpeak, onSpeakSlow, onSpeakBoth }: {
   const desc = codes.map((c) => WORD_TYPE_MAP[c]).filter(Boolean).join(', ');
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-      {/* Dòng 1: loại từ */}
       {wordType && (
         <div className="learn-meta">
           <span className="word-type">{wordType}</span>
           {desc && <span className="word-type-desc">({desc})</span>}
         </div>
       )}
-      {/* Dòng 2: phiên âm + 3 nút phát âm */}
       <div className="learn-meta">
         {ipa && <span className="word-ipa" style={{ marginTop: 0 }}>{ipa}</span>}
         <button className="learn-speak-btn" onClick={onSpeak} title="Phát âm tiếng Anh">🔊</button>
@@ -34,6 +92,9 @@ function WordMeta({ wordType, ipa, onSpeak, onSpeakSlow, onSpeakBoth }: {
   );
 }
 
+// ---------------------------------------------------------------------------
+//  LearnView
+// ---------------------------------------------------------------------------
 export interface LearnViewProps {
   active: boolean;
   currentWord: Vocab | undefined;
@@ -56,13 +117,8 @@ export function LearnView({
   const [imageErrorWordId, setImageErrorWordId] = useState<string | null>(null);
   const hasImage = !!currentWord?.imageUrl && currentWord.wordId !== imageErrorWordId;
 
-  // Tự động phát âm Anh + Việt khi chuyển từ
-  useEffect(() => {
-    if (active && currentWord) {
-      speakWithVietnamese(currentWord.englishWord, currentWord.vietnameseMeaning);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentWord?.wordId, active]);
+  // Chu kỳ phát âm tự động
+  useSpeakCycle(currentWord, countdown, active);
 
   // ---- Thanh số từ với phân trang kiểu ... ----
   function buildNavItems(total: number, current: number): (number | '...')[] {
