@@ -27,32 +27,22 @@ export function speakSlow(text: string) {
 }
 
 /**
- * Phát âm tiếng Anh, sau khi xong tự động phát nghĩa tiếng Việt.
+ * Chỉ phát nghĩa tiếng Việt (không đọc lại tiếng Anh).
  * Ưu tiên giọng vi-VN-HoaiMyNeural (Edge) → bất kỳ giọng vi-VN → fallback lang vi-VN.
  */
 export function speakWithVietnamese(
-  englishText: string,
+  _englishText: string,
   vietnameseText: string,
-  rate = 0.9
 ) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
 
-  // --- Utterance 1: tiếng Anh ---
-  const uEn = new SpeechSynthesisUtterance(englishText);
-  uEn.lang = 'en-US';
-  uEn.rate = rate;
-
-  // --- Utterance 2: tiếng Việt ---
   const uVi = new SpeechSynthesisUtterance(vietnameseText);
   uVi.lang = 'vi-VN';
   uVi.rate = 0.9;
 
-  // Chọn giọng vi-VN tốt nhất có sẵn trên thiết bị
-  // Chrome/Edge thường tải giọng bất đồng bộ → dùng getVoices() lúc đọc
   const pickViVoice = () => {
     const voices = window.speechSynthesis.getVoices();
-    // Ưu tiên HoaiMy (miền Nam), sau đó NamMinh, sau đó bất kỳ vi-VN
     const preferred = ['HoaiMy', 'NamMinh'];
     for (const name of preferred) {
       const v = voices.find((v) => v.lang === 'vi-VN' && v.name.includes(name));
@@ -61,15 +51,9 @@ export function speakWithVietnamese(
     return voices.find((v) => v.lang === 'vi-VN' || v.lang.startsWith('vi')) || null;
   };
 
-  uEn.onend = () => {
-    // Gán giọng ngay trước khi speak để đảm bảo danh sách voices đã load
-    const viVoice = pickViVoice();
-    if (viVoice) uVi.voice = viVoice;
-    // Delay nhỏ 300ms để tạo khoảng ngắt tự nhiên giữa 2 ngôn ngữ
-    setTimeout(() => window.speechSynthesis.speak(uVi), 300);
-  };
-
-  window.speechSynthesis.speak(uEn);
+  const viVoice = pickViVoice();
+  if (viVoice) uVi.voice = viVoice;
+  window.speechSynthesis.speak(uVi);
 }
 
 /**

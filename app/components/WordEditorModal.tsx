@@ -2,6 +2,7 @@
 
 import type { UseWordEditorResult } from '@/app/hooks/useWordEditor';
 import { WORD_TYPE_OPTIONS, parseWordTypeCodes, filterKnownWordTypeCodes, buildWordTypeString } from '@/app/lib/wordTypes';
+import { speak, speakWithVietnamese } from '@/app/hooks/useLearnSession';
 import type { Topic } from '@/lib/types';
 
 export interface WordEditorModalProps {
@@ -56,18 +57,33 @@ export function WordEditorModal({ editor, topics, onSave, onDelete, onFetchImage
         <div className="mt-16">
           <div className="row-between" style={{ marginBottom: '8px' }}>
             <label className="field-label" style={{ margin: 0 }}>Phiên âm</label>
-            <button
-              type="button"
-              onClick={fetchIpa}
-              disabled={ipaLoading}
-              style={{
-                background: 'none', border: 'none', cursor: ipaLoading ? 'not-allowed' : 'pointer',
-                color: 'var(--primary-start)', fontSize: '0.8rem', fontWeight: 600,
-                padding: 0, opacity: ipaLoading ? 0.5 : 1, textDecoration: 'underline',
-              }}
-            >
-              {ipaLoading ? '⏳ Đang tìm...' : '🔄 Tự động lấy'}
-            </button>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              {editIpa && (
+                <button
+                  type="button"
+                  onClick={() => speak(editEnglish)}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: '#3182ce', fontSize: '0.8rem', fontWeight: 600,
+                    padding: 0, textDecoration: 'underline',
+                  }}
+                >
+                  🔊 Nghe
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={fetchIpa}
+                disabled={ipaLoading}
+                style={{
+                  background: 'none', border: 'none', cursor: ipaLoading ? 'not-allowed' : 'pointer',
+                  color: 'var(--primary-start)', fontSize: '0.8rem', fontWeight: 600,
+                  padding: 0, opacity: ipaLoading ? 0.5 : 1, textDecoration: 'underline',
+                }}
+              >
+                {ipaLoading ? '⏳ Đang tìm...' : '🔄 Tự động lấy'}
+              </button>
+            </div>
           </div>
           <input
             className="input-field"
@@ -92,7 +108,22 @@ export function WordEditorModal({ editor, topics, onSave, onDelete, onFetchImage
           </div>
         </div>
         <div className="mt-16">
-          <label className="field-label">Nghĩa tiếng Việt</label>
+          <div className="row-between" style={{ marginBottom: '8px' }}>
+            <label className="field-label" style={{ margin: 0 }}>Nghĩa tiếng Việt</label>
+            {editMeaning && (
+              <button
+                type="button"
+                onClick={() => speakWithVietnamese(editEnglish, editMeaning)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#276749', fontSize: '0.8rem', fontWeight: 600,
+                  padding: 0, textDecoration: 'underline',
+                }}
+              >
+                🔊🇻🇳 Nghe
+              </button>
+            )}
+          </div>
           <textarea
             className="input-field"
             rows={1}
