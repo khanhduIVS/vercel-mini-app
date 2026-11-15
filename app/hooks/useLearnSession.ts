@@ -6,7 +6,7 @@ import type { Vocab } from '@/lib/types';
 import type { UiFeedback } from './useUiFeedback';
 import type { AppView } from './useUserFlow';
 
-const COUNTDOWN_SECONDS = 30;
+const COUNTDOWN_SECONDS = 15;
 
 export function speak(text: string) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
