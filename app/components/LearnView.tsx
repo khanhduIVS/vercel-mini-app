@@ -7,12 +7,24 @@ import { WORD_TYPE_MAP, parseWordTypeCodes, filterKnownWordTypeCodes } from '@/a
 
 // ---------------------------------------------------------------------------
 //  Chu kỳ phát âm cho 1 từ:
-//    1s chờ → EN → 2s → EN → 1s → VI → 1s  (tổng ~5s / chu kỳ)
+// ---------------------------------------------------------------------------
+//  Chu kỳ phát âm cho 1 từ:
+//    1s chờ → EN bình thường → 2s → EN chậm → 1s  (tổng ~4s / chu kỳ)
 //  Số chu kỳ = Math.floor(countdown / 5), tối thiểu 1.
-//  Mỗi khi wordId thay đổi, cancel cycle cũ và bắt đầu cycle mới.
+//  Khi wordId thay đổi: clearTimeout ngay + cancel speechSynthesis tức thì.
 // ---------------------------------------------------------------------------
 function useSpeakCycle(word: Vocab | undefined, countdown: number, active: boolean) {
+  const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelRef = useRef(false);
+
+  const cancelAll = () => {
+    cancelRef.current = true;
+    if (timeoutIdRef.current !== null) {
+      clearTimeout(timeoutIdRef.current);
+      timeoutIdRef.current = null;
+    }
+    if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
+  };
 
   useEffect(() => {
     if (!active || !word) return;
@@ -20,31 +32,26 @@ function useSpeakCycle(word: Vocab | undefined, countdown: number, active: boole
     cancelRef.current = false;
     const cycles = Math.max(1, Math.floor(countdown / 5));
     const en = word.englishWord;
-    const vi = word.vietnameseMeaning;
 
-    // Helper: delay có thể bị cancel
-    const delay = (ms: number) =>
-      new Promise<void>((resolve, reject) => {
-        const t = setTimeout(() => {
-          if (cancelRef.current) reject(new Error('cancelled'));
+    const delay = (ms: number): Promise<void> =>
+      new Promise((resolve, reject) => {
+        if (cancelRef.current) { reject(); return; }
+        const id = setTimeout(() => {
+          timeoutIdRef.current = null;
+          if (cancelRef.current) reject();
           else resolve();
         }, ms);
-        // Lưu timeout để cancel nếu cần (không dùng clearTimeout trực tiếp,
-        // dùng cancelRef để reject bên trong setTimeout)
-        void t;
+        timeoutIdRef.current = id;
       });
 
     const runCycles = async () => {
       try {
         for (let i = 0; i < cycles; i++) {
-          if (cancelRef.current) return;
-          await delay(1000);                    // 1s chờ
-          if (cancelRef.current) return;
-          speak(en);                            // phát EN bình thường
-          await delay(2000);                    // 2s
-          if (cancelRef.current) return;
-          speakSlow(en);                        // phát EN chậm
-          await delay(1000);                    // 1s chờ cuối chu kỳ
+          await delay(1000);
+          speak(en);
+          await delay(2000);
+          speakSlow(en);
+          await delay(1000);
         }
       } catch {
         // bị cancel — dừng im lặng
@@ -53,11 +60,7 @@ function useSpeakCycle(word: Vocab | undefined, countdown: number, active: boole
 
     runCycles();
 
-    return () => {
-      cancelRef.current = true;
-      if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
-    };
-  // countdown chỉ dùng lúc khởi động để tính số chu kỳ, không re-run khi đếm ngược
+    return () => cancelAll();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [word?.wordId, active]);
 }
