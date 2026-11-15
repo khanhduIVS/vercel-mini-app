@@ -235,6 +235,7 @@ export function useWordsManager(
 
   return {
     showWordsManager, managerWords, managerTotal, managerPage,
+    noImageCount,
     managerSearchInput, setManagerSearchInput, managerTopicFilter,
     managerStart, managerEnd, managerTotalPages,
     showWordsManagerModal, hideWordsManagerModal, renderWordsManager, refreshCurrentPage,

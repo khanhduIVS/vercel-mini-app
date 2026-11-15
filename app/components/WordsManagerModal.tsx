@@ -14,6 +14,7 @@ export interface WordsManagerModalProps {
 export function WordsManagerModal({ manager, topics, onHide, onEditWord }: WordsManagerModalProps) {
   const {
     showWordsManager, managerWords, managerTotal,
+    noImageCount,
     managerSearchInput, setManagerSearchInput, managerTopicFilter,
     managerStart, managerEnd, managerTotalPages, managerPage,
     onManagerSearch, onManagerTopicChange, managerPrevPage, managerNextPage,
@@ -59,6 +60,41 @@ export function WordsManagerModal({ manager, topics, onHide, onEditWord }: Words
               ? `Cập nhật ảnh cho chủ đề "${topics.find((t) => t.topicId === managerTopicFilter)?.name || ''}"`
               : 'Cập nhật ảnh cho tất cả từ'}
           </button>
+          {noImageCount > 0 && (
+            <div style={{
+              marginTop: '6px',
+              fontSize: '0.8rem',
+              color: '#c05621',
+              background: '#fffaf0',
+              border: '1px solid #fbd38d',
+              borderRadius: '8px',
+              padding: '6px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}>
+              ⚠️ Có <strong>{noImageCount.toLocaleString('en-US')}</strong> từ chưa có hình ảnh
+              {managerTopicFilter
+                ? ` trong chủ đề này`
+                : ''}
+            </div>
+          )}
+          {noImageCount === 0 && managerTotal > 0 && (
+            <div style={{
+              marginTop: '6px',
+              fontSize: '0.8rem',
+              color: '#276749',
+              background: '#f0fff4',
+              border: '1px solid #9ae6b4',
+              borderRadius: '8px',
+              padding: '6px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}>
+              ✅ Tất cả từ đã có hình ảnh
+            </div>
+          )}
         </div>
 
         <div className="mt-16" style={{ maxHeight: '400px', overflowY: 'auto' }}>
