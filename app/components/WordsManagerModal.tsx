@@ -18,7 +18,7 @@ export function WordsManagerModal({ manager, topics, onHide, onEditWord }: Words
     managerSearchInput, setManagerSearchInput, managerTopicFilter,
     managerStart, managerEnd, managerTotalPages, managerPage,
     onManagerSearch, onManagerTopicChange, managerPrevPage, managerNextPage,
-    confirmDeleteWord, bulkAutoFindImages,
+    confirmDeleteWord, bulkAutoFindImages, checkBrokenImages,
   } = manager;
 
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
@@ -74,6 +74,14 @@ export function WordsManagerModal({ manager, topics, onHide, onEditWord }: Words
                 {topicName
                   ? `Cập nhật ảnh cho chủ đề "${topicName}"`
                   : 'Cập nhật ảnh cho tất cả từ'}
+              </button>
+
+              <button
+                className="btn btn-secondary btn-block mt-8"
+                onClick={checkBrokenImages}
+              >
+                {'🔍 Quét ảnh lỗi'}
+                {topicName ? ` trong "${topicName}"` : ''}
               </button>
 
               {noImageCount > 0 && (

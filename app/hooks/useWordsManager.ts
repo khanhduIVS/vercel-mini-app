@@ -58,6 +58,7 @@ export interface UseWordsManagerResult {
   managerNextPage: () => void;
   confirmDeleteWord: (wordId: string) => Promise<void>;
   bulkAutoFindImages: () => Promise<void>;
+  checkBrokenImages: () => Promise<void>;
 }
 
 /**
@@ -227,6 +228,44 @@ export function useWordsManager(
   const managerStart = managerTotal > 0 ? (managerPage - 1) * PAGE_SIZE + 1 : 0;
   const managerEnd = Math.min(managerStart + PAGE_SIZE - 1, managerTotal);
 
+  const checkBrokenImages = async () => {
+    const topicId = managerTopicFilter;
+    const topicName = topicId ? (topics.find((t) => t.topicId === topicId)?.name || '') : '';
+
+    ui.setLoading(true);
+    ui.setLoadingMessage(
+      topicName
+        ? `Đang quét ảnh lỗi trong chủ đề "${topicName}"...`
+        : 'Đang quét ảnh lỗi toàn bộ kho từ...'
+    );
+    try {
+      const res = await fetch('/api/vocab/check-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topicId }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+
+      if (data.broken === 0) {
+        ui.showToast(`✅ Đã quét ${data.checked.toLocaleString('en-US')} ảnh — không có ảnh lỗi`, 'success', 4000);
+      } else {
+        ui.showToast(
+          `🔍 Quét xong: ${data.checked.toLocaleString('en-US')} ảnh\n` +
+          `❌ Phát hiện ${data.broken.toLocaleString('en-US')} ảnh lỗi đã xóa\n` +
+          `💡 Nhấn "Cập nhật ảnh" để tìm lại ảnh mới`,
+          'info',
+          6000
+        );
+      }
+      refreshCurrentPage();
+    } catch {
+      ui.showToast('Lỗi khi quét ảnh', 'error');
+    } finally {
+      ui.setLoading(false);
+    }
+  };
+
   return {
     showWordsManager, managerWords, managerTotal, managerPage,
     noImageCount,
@@ -234,6 +273,6 @@ export function useWordsManager(
     managerStart, managerEnd, managerTotalPages,
     showWordsManagerModal, hideWordsManagerModal, renderWordsManager, refreshCurrentPage,
     onManagerSearch, onManagerTopicChange, managerPrevPage, managerNextPage,
-    confirmDeleteWord, bulkAutoFindImages,
+    confirmDeleteWord, bulkAutoFindImages, checkBrokenImages,
   };
 }
