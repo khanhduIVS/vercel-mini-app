@@ -150,7 +150,7 @@ export function LearnView({
   }
 
   return (
-    <section className={`view learn-view ${active ? 'active' : ''}`}>
+    <div className={`overlay learn-overlay ${active ? 'active' : ''}`}>
       <div className="learn-card">
 
         {/* Header */}
@@ -250,6 +250,6 @@ export function LearnView({
         </div>
 
       </div>
-    </section>
+    </div>
   );
 }

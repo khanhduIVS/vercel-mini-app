@@ -50,6 +50,7 @@ body.learn-active { overflow: hidden; }
     env(safe-area-inset-bottom, 0px)
     env(safe-area-inset-left, 0px);
   overflow: hidden;
+  z-index: 100;
 }
 .view-fullscreen.active {
   display: flex;
@@ -388,34 +389,41 @@ label.field-label {
   .dash-stat .num { font-size: 1.1rem; }
 }
 
-/* ---------- LearnView: full-viewport, không scroll ---------- */
+/* ---------- LearnView: popup overlay ---------- */
 
-/* Section learn chiếm toàn bộ chiều cao viewport, layout flex dọc */
-.view.learn-view {
-  display: none;
-  position: fixed;
-  inset: 0;
-  flex-direction: column;
-  background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
-  padding: 12px;
-  overflow: hidden;
-}
-.view.learn-view.active {
-  display: flex;
-  animation: fadeIn 0.3s ease;
+.learn-overlay {
+  /* Dùng lại .overlay base (position fixed, inset 0, background dim) */
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 800;
 }
 
-/* Card bên trong cũng flex dọc, chiếm hết chiều cao còn lại */
+/* Card popup: bo góc, shadow, giới hạn kích thước */
 .learn-card {
   background: #fff;
   border-radius: 20px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.12);
-  flex: 1;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  width: 100%;
+  max-width: 480px;
+  max-height: 90dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 0;
-  min-height: 0; /* quan trọng: cho phép flex-child co lại */
+  min-height: 0;
+}
+
+/* Trên mobile: popup chiếm toàn màn hình */
+@media (max-width: 520px) {
+  .learn-overlay {
+    padding: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .learn-card {
+    max-width: 100%;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
 }
 
 /* Header: badge + countdown + nút quay lại */

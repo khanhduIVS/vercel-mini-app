@@ -40,20 +40,16 @@ export default function Home() {
     userFlow.logout();
   };
 
-  // Bắt đầu buổi học: lấy danh sách từ rồi chuyển view sang 'learn'
+  // Bắt đầu buổi học: lấy danh sách từ rồi mở popup learn
   const handleStartLearningSession = async () => {
     const ok = await learnSession.startLearningSession(userFlow.currentUser, dashboard.wordCount, dashboard.selectedTopic);
-    if (ok) {
-      userFlow.setCurrentView('learn');
-      document.body.classList.add('learn-active');
-    }
+    if (ok) userFlow.setCurrentView('learn');
   };
 
   // Quay lại dashboard: dừng countdown + hủy phát âm, tải lại thống kê
   const handleBackToDashboard = () => {
     learnSession.stopCountdown();
     if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
-    document.body.classList.remove('learn-active');
     userFlow.setCurrentView('dashboard');
     dashboard.loadDashboard(userFlow.currentUser);
   };
@@ -72,7 +68,7 @@ export default function Home() {
       />
 
       <DashboardView
-        active={userFlow.currentView === 'dashboard'}
+        active={userFlow.currentView === 'dashboard' || userFlow.currentView === 'learn'}
         currentUser={userFlow.currentUser}
         stats={dashboard.stats}
         topics={topics.topics}
