@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { EdgeTTS } from '@travisvn/edge-tts';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/tts?text=...&voice=vi-VN-HoaiMyNeural&rate=-10%
  *
